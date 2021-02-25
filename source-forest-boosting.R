@@ -73,10 +73,10 @@ random.forest.split <- function(X, y, ntree=200, mtry=NULL, max.depth=0, min.nod
   Data.a <- Data[a.ind, ]
   Data.b <- Data[b.ind, ]
   
-  best.model.a <- NULL; best.model.a <- NULL
+  best.model.a <- NULL; best.model.b <- NULL
   MSE.a <- 1e6; MSE.b <- 1e6
   best.params.a <- NULL; best.params.b <- NULL
-  for (i in nrow(params.grid)) {
+  for (i in 1:nrow(params.grid)) {
     forest.a <- ranger(y~., data = Data.a, 
                        num.trees=params.grid$ntree[i], 
                        mtry=params.grid$mtry[i],
