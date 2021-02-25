@@ -16,22 +16,22 @@ A1gen<-function(rho,p){
 }
 
 ###### dimension change the dimension 1,2,3,4,5,8,10,15,17,20
-p=20
+p=10
 ####please change this n= 1000, 2000
 n=2000
 ##### change the interaction 1,2
-inter.val<-2
+inter.val<-1
 ##### set up the number of folds
 folds<-5
 #### the number of simulation numbers
 nsim<-2
 ##################################################
 #### binary iv, TRUE(1) or FALSE(0)
-binary.iv<-FALSE
+binary.iv<-0
 ### Set different ways of generating E(D|Z,X) function
 if(binary.iv){
   #### change f.index across 1,2,3,4,5,6
-  f.index<-4
+  f.index<-6
 }else{
   #### change f.index across 1,2,3,4,5,6
   f.index<-5
@@ -98,6 +98,22 @@ spectral.norms <- matrix(NA,nsim,5)
 ### the trace of RHS of equation (28), ignoring SigmaSquare here
 ksplit.trace <- matrix(NA,nsim,5)
 
+
+### the beta estimated by part of the data
+beta.k <- matrix(NA,nsim,5)
+confint.lo.k <- matrix(NA,nsim,5)
+confint.up.k <- matrix(NA,nsim,5)
+
+### confidence interval of beta
+confint.beta <- matrix(NA,nsim,2)
+
+### estimate of sigmasq
+sigmasq <- rep(NA,nsim)
+
+### t(D)%*%P%*%D
+Dsq <- rep(NA,nsim)
+
+
 for(i in 1:nsim){
   print(i)
   #### generate the data
@@ -163,7 +179,7 @@ for(i in 1:nsim){
   
   ### use k split here
   ### deciding grids of mtry by p
-  if (p+1<=11) {
+  if (p+1<=6) {
     mtry = 1:(p+1)
   } else {
     mtry = seq(round((p+1)/3), round(2*(p+1)/3), by=1)
@@ -201,18 +217,34 @@ for(i in 1:nsim){
       Coef.matrix.inter[i,q+1]<-coef(reg.rf)[2]
     }
   }
+  
+  ### confidence intervals
+  P.origin <- diag(1,n,n) - forest.cov%*%solve(t(forest.cov)%*%forest.cov)%*%t(forest.cov)
+  sigmasq[i] <- mean((P.origin%*%(Y-D*coef(reg.rf2)[2]))^2)
+  P.rep <- diag(1,n,n) - W.rep%*%solve(t(W.rep)%*%W.rep)%*%t(W.rep)
+  Est.sd <- sqrt(sigmasq[i]*1/(t(D.rep)%*%P.rep%*%D.rep))
+  confint.beta[i,1] <- coef(reg.rf1)[2] - 1.96*Est.sd
+  confint.beta[i,2] <- coef(reg.rf1)[2] + 1.96*Est.sd
+  Dsq[i] <- t(D.rep)%*%P.rep%*%D.rep
+  ksplit.trace <- sum((P.rep%*%weight.semi)^2)
+  
   ### calculate spectral norms and trace
-  # k.ind <- forest.semi$k.ind
-  # for (j in 1:length(k.ind)) {
-  #   n.k <- length(k.ind[[j]])
-  #   U.k <- W.rep[k.ind[[j]],]
-  #   ### norms
-  #   P.k <- (diag(1,n.k,n.k)-U.k %*% solve(t(U.k)%*%U.k) %*% t(U.k))
-  #   spectral.norms[i,j] <- norm(P.k%*%D.rep[k.ind[[j]]],type = "2")
-  #   ### trace
-  #   Omega.k <- weight.semi[k.ind[[j]],-k.ind[[j]]]
-  #   ksplit.trace[i,j] <- sum((P.k%*%Omega.k)^2)
-  # }
+  k.ind <- forest.semi$k.ind
+  for (j in 1:length(k.ind)) {
+    n.k <- length(k.ind[[j]])
+    U.k <- W.rep[k.ind[[j]],]
+    Y.rep.k <- Y.rep[k.ind[[j]]]
+    D.rep.k <- D.rep[k.ind[[j]]]
+    ### norms
+    P.k <- (diag(1,n.k,n.k)-U.k %*% solve(t(U.k)%*%U.k) %*% t(U.k))
+    spectral.norms[i,j] <- norm(P.k%*%D.rep[k.ind[[j]]],type = "2")
+    
+    ### calculate beta.k
+    beta.k[i] <- (t(Y.rep.k)%*%P.k%*%D.rep.k)/(t(D.rep.k)%*%P.k%*%D.rep.k)
+    Est.sd.k <- sqrt(sigmasq[i]*1/(t(D.rep[k.ind[[j]]])%*%P.k%*%D.rep[k.ind[[j]]]))
+    confint.lo.k[i,j] <- beta.k[i] - 1.96*Est.sd.k
+    confint.up.k[i,j] <- beta.k[i] + 1.96*Est.sd.k
+  }
   ###### try the random forest with D.rep defined as the predicted value
   ###### after applying k-split random forest to D
   if (binary.iv) {
@@ -299,3 +331,4 @@ for (j in 1:ncol(Coef.matrix.inter)) {
   Cov.mat[,j] <- ifelse(Coef.matrix.inter[,j]-1.96*sd[j]<=beta & beta<=Coef.matrix.inter[,j]+1.96*sd[j],yes=1,no=0)
 }
 apply(Cov.mat,2,mean)
+
