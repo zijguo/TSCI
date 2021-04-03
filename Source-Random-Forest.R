@@ -102,6 +102,7 @@ rf.kcross <- function(X,y,k=2,num.trees=200,mtry=NULL,max.depth=0,min.node.size=
   }
 
   forest <- params <- rep(list(NA), k)
+  ### use oob error to do hyper-parameter tuning
   MSE.oob <- rep(MSE.thol, k)
   for (j in 1:k) {
     for (i in 1:nrow(params.grid)) {
@@ -195,7 +196,7 @@ try.inverse <- function(m) class(try(solve(m),silent=T))[1]=="matrix"
 
 
 ### calculate the standard error and conduct IV strength test
-statRF.2split <- function(Y.rep, D.rep, Y, D, VW.rep, VW, betaHat, weight, n, SigmaSqY, SigmaSqD, L=500, boot=TRUE, c0=0.01, C1=1, lam=0.05) {
+statRF.2split <- function(Y.rep, D.rep, Y, D, VW.rep, VW, betaHat, weight, n, SigmaSqY, SigmaSqD, L=500, boot=FALSE, c0=0.01, C1=1.25, lam=0.05) {
   n.A1 <- length(D.rep)
   p <- ncol(VW.rep)
   ### check the inverse of t(VW.rep)%*%VW.rep
@@ -214,8 +215,10 @@ statRF.2split <- function(Y.rep, D.rep, Y, D, VW.rep, VW, betaHat, weight, n, Si
   ### the standard error of the estimator and iv strength test
   tr.TRF <- sum(diag(TRF.V))
   tr.TRF2 <- sum(diag(TRF.V%*%TRF.V))
-  LHS <- t(D)%*%TRF.V%*%D
-  Sd <- sqrt(SigmaSqY*(t(D)%*%TRF.V%*%TRF.V%*%D)/(LHS^2))
+  iv.str <- t(D)%*%TRF.V%*%D
+  # this is the numerator of the variance of betaHat
+  numerator <- t(D)%*%TRF.V%*%TRF.V%*%D
+  Sd <- sqrt(SigmaSqY*numerator/(iv.str^2))
 
 
   ### standard errors of  bias-corrected estimator
@@ -228,8 +231,8 @@ statRF.2split <- function(Y.rep, D.rep, Y, D, VW.rep, VW, betaHat, weight, n, Si
     Portho.VW <- diag(1,n.A1,n.A1) - VW %*% solve(t(VW)%*%VW+lam*diag(1,p,p)) %*% t(VW)
   }
   SigmaYD <- t(D-D.rep)%*%Portho.VW%*%(Y-D*betaHat)/(n.A1-p)
-  beta.cor <- betaHat - SigmaYD*tr.TRF/LHS
-  Sd.cor <- sqrt((SigmaSqY*(t(D)%*%TRF.V%*%TRF.V%*%D)+(SigmaSqD*SigmaSqY+SigmaYD^2)*(tr.TRF^2)/(n.A1-p))/(LHS^2))
+  beta.cor <- betaHat - SigmaYD*tr.TRF/iv.str
+  Sd.cor <- sqrt((SigmaSqY*numerator+(SigmaSqD*SigmaSqY+SigmaYD^2)*(tr.TRF^2)/(n.A1-p))/(iv.str^2))
 
   ### using bootstrap
   # SigmaHat <- matrix(c(SigmaSqY,SigmaYD,SigmaYD,SigmaSqD),2,2)
@@ -239,49 +242,47 @@ statRF.2split <- function(Y.rep, D.rep, Y, D, VW.rep, VW, betaHat, weight, n, Si
   #   Error.boot <- mvrnorm(n.A1, rep(0,2), SigmaHat)
   #   T.boot[l] <- t(Error.boot[,1])%*%TRF.V%*%D - (t(Error.boot[,2])%*%Portho.VW%*%Error.boot[,1]*tr.TRF)/(n.A1-p)
   # }
-  # Sd.cor.boot <- sqrt(var(T.boot)/(LHS^2))
+  # Sd.cor.boot <- sqrt(var(T.boot)/(iv.str^2))
 
 
   ### the IV strength test
   tau.n <- log(log(n))
   # cn <- sqrt(tau.n/tr.TRF)/tau.n*(2+sqrt(tr.TRF2/tr.TRF)/tau.n)+1/tau.n^2
   cn <- 0
-  Cn.V <- sqrt(tr.TRF2) + 2*sqrt(tr.TRF)*max(tau.n, sqrt(LHS/((1-cn)*SigmaSqD*tr.TRF)))
-  RHS <- (1+c0)*tr.TRF*SigmaSqD + sqrt(tau.n)*SigmaSqD*Cn.V
+  Cn.V <- sqrt(tr.TRF2) + 2*sqrt(tr.TRF)*max(tau.n, sqrt(iv.str/((1-cn)*SigmaSqD*tr.TRF)))
+  iv.thol <- (1+c0)*tr.TRF*SigmaSqD + sqrt(tau.n)*SigmaSqD*Cn.V
 
 
   ### the Signal Strength Test for splitting estimator
-  SignalTest.LHS <- sqrt(SigmaSqY*t(D)%*%TRF.V%*%TRF.V%*%D)
-  SignalTest.RHS <- C1*(SigmaYD*tr.TRF+sqrt(tr.TRF2)*sqrt(tau.n))
+  signal.str <- sqrt(SigmaSqY*numerator)
+  signal.thol <- C1*(SigmaYD*tr.TRF+sqrt(tr.TRF2)*sqrt(tau.n))
 
   ### the Signal Strength Test for bias-corrected estimator
-  SignalTest.cor.LHS <- SignalTest.LHS
-  SignalTest.cor.RHS <- C1*sqrt(tr.TRF2)*sqrt(tau.n) + tau.n
+  signal.str.cor <- signal.str
+  signal.thol.cor <- C1*sqrt(tr.TRF2)*sqrt(tau.n) + tau.n
 
 
   ### calculate the decomposition
-  term1 <- (t(Error[,2][forest.2$A1.ind])%*%TRF.V%*%D)/LHS
-  term2 <- -(SigmaYD-0.5)*tr.TRF/LHS
-  term3 <- (t(Error[,2][forest.2$A1.ind])%*%TRF.V%*%Error[,1][forest.2$A1.ind]-0.5*tr.TRF)/LHS
+  # term1 <- (t(Error[,2][forest.2$A1.ind])%*%TRF.V%*%D)/iv.str
+  # term2 <- -(SigmaYD-0.5)*tr.TRF/iv.str
+  # term3 <- (t(Error[,2][forest.2$A1.ind])%*%TRF.V%*%Error[,1][forest.2$A1.ind]-0.5*tr.TRF)/iv.str
 
 
   returnList <- list(Sd = Sd,
                      Sd.cor = 1.1*Sd.cor,
                      SigmaYD = SigmaYD,
                      beta.cor = beta.cor,
-                     # Sd.cor.boot = 1.1*Sd.cor.boot,
+                     TRF.V = TRF.V,
                      tr.TRF = tr.TRF,
                      tr.TRF2 = tr.TRF2,
-                     LHS = LHS,
-                     RHS = RHS,
-                     SignalTest.LHS = SignalTest.LHS,
-                     SignalTest.RHS = SignalTest.RHS,
-                     SignalTest.cor.LHS = SignalTest.cor.LHS,
-                     SignalTest.cor.RHS = SignalTest.cor.RHS,
-                     invert = invert,
-                     term1 = term1,
-                     term2 = term2,
-                     term3 = term3)
+                     iv.str = iv.str,
+                     iv.thol = iv.thol,
+                     numerator = numerator,
+                     signal.str = signal.str,
+                     signal.thol = signal.thol,
+                     signal.str.cor = signal.str.cor,
+                     signal.thol.cor  = signal.thol.cor,
+                     invert = invert)
   returnList
 }
 
