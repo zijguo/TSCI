@@ -1,4 +1,4 @@
-### Start Date: Mar 6, 2021; Recently updated Date: Mar 6, 2021
+### Start Date: Mar 6, 2021; Recently updated Date: April 3, 2021
 ### TSCI: Random Forest with Binary IV and Continuous Treatment
 ### Setting: with interaction, compare random forest and regression model
 
