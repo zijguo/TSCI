@@ -1,4 +1,4 @@
-### Start Date: Mar 6, 2021; Recently updated Date: Mar 6, 2021
+### Start Date: Mar 6, 2021; Recently updated Date: April 3, 2021
 ### TSCI: Random Forest with Binary IV and Continuous Treatment
 ### Setting: with interaction, compare random forest and regression model
 
@@ -48,6 +48,7 @@ nsim = 20
 f_1 <- function(x){x+a*(x^2+0.5*x^4) -25/12}
 f_2 <- function(x){exp(2*a+x+0.5*x^3) - 2/5 * sinh(5/2)}
 f_3 <- function(x){a*(1*sin(2*pi*x) + 1.5*cos(2*pi*x))}
+f_4 <- function(x){exp(a*x)+a*(x^2+0.5*x^4)}
 rho1=0.5
 Cov<-(A1gen(rho1,p+1))
 mu<-rep(0,p+1)
@@ -72,19 +73,24 @@ colnames(Coef.matrix.inter) <- colnames(sd.matrix.inter) <- estimator.names
 # sd.matrix.boot <- matrix(NA,nsim,5)
 # colnames(sd.matrix.boot) <- estimator.names[(Q+1):(2*Q)]
 
-
+# IV strength test
 ivtest.2split <- matrix(NA,nrow=nsim,ncol=2*Q)
 colnames(ivtest.2split) <- paste(rep(paste("q",1:Q,sep=""),each=2),c("LHS","RHS"), sep = "-")
+# signal strength test for data split estimator
 SignalTest.2split <- matrix(NA,nrow=nsim,ncol=2*Q)
 colnames(SignalTest.2split) <- paste(rep(estimator.names[1:Q], each = 2), c("LHS","RHS"), sep = "-")
+# signal strength test for bias corrected estimator
 SignalTest.cor.2split <- matrix(NA,nrow=nsim,ncol=2*Q)
 colnames(SignalTest.cor.2split) <- paste(rep(estimator.names[(Q+1):(2*Q)], each = 2), c("LHS","RHS"), sep = "-")
 
 
+# variance of epsilon
 SigmaSqY <- matrix(NA, nsim, 2*Q)
 colnames(SigmaSqY) <- estimator.names[1:(2*Q)]
+# variance of delta
 var.delta <- matrix(NA, nsim, 4)
 colnames(var.delta) <- c("RF-2split","RF-kcross","RF-TSLS","RF-full")
+# covariance of epsilon and delta
 SigmaYD <- matrix(NA, nsim, 2*Q)
 colnames(SigmaYD) <- estimator.names[1:(2*Q)]
 
@@ -124,6 +130,9 @@ for(i in 1:nsim){
   if(f.index==6){
     D=f_3(Z)+X%*%alpha+Z*X%*%inter+Error[,1]
   }
+  if(f.index==7){
+    D=f_4(Z)+X%*%alpha+Error[,1]
+  }
   ####### generate the outcome variable
   if(vio.index==0){
     Y=D*beta+ X%*% gamma+Error[,2]
@@ -161,8 +170,8 @@ for(i in 1:nsim){
   forest.2 <- rf.2split(forest.cov,D,mtry=mtry,max.depth=max.depth,min.node.size=min.node.size)
   weight.2 <- weight.2split(forest.2$nodes.A1)
   D.rep.2 <- as.matrix(weight.2)%*%D[forest.2$A1.ind]
-  var.delta[i,1] <- mean((D[forest.2$A1.ind]-D.rep.2)^2)
-  print(var.delta[i,1])
+  SigmaSqD[i,1] <- mean((D[forest.2$A1.ind]-D.rep.2)^2)
+  print(SigmaSqD[i,1])
   Cov.aug<-cbind(Z^4,Z^3,Z^2,Z,W[,-1])
   W.rep.2 <- as.matrix(weight.2)%*%Cov.aug[forest.2$A1.ind,]
   Y.rep.2 <- as.matrix(weight.2)%*%Y[forest.2$A1.ind]
@@ -175,7 +184,7 @@ for(i in 1:nsim){
       stat.result2 <- statRF.2split(Y.rep.2, D.rep.2, Y[forest.2$A1.ind], D[forest.2$A1.ind],
                                     cbind(1,W.rep.2), cbind(1,Cov.aug[forest.2$A1.ind,]),
                                     coef(reg2.rf)[2], weight.2, n,
-                                    SigmaSqY[i,q+1], var.delta[i,1])
+                                    SigmaSqY[i,q+1], SigmaSqD[i,1])
       Coef.matrix.inter[i,q+1+Q] <- stat.result2$beta.cor
       SigmaYD[i, q+1] <- stat.result2$SigmaYD
       sd.matrix.inter[i,q+1] <- stat.result2$Sd
@@ -196,7 +205,7 @@ for(i in 1:nsim){
       stat.result2 <- statRF.2split(Y.rep.2, D.rep.2, Y[forest.2$A1.ind], D[forest.2$A1.ind],
                                     cbind(1,W.rep.2[,-(1:(Q-1-q))]), cbind(1,Cov.aug[forest.2$A1.ind,-(1:(Q-1-q))]),
                                     coef(reg2.rf)[2], weight.2, n,
-                                    SigmaSqY[i,q+1],var.delta[i,1])
+                                    SigmaSqY[i,q+1],SigmaSqD[i,1])
       Coef.matrix.inter[i,q+1+Q] <- stat.result2$beta.cor
       SigmaYD[i, q+1] <- stat.result2$SigmaYD
       sd.matrix.inter[i,q+1] <- stat.result2$Sd
@@ -294,7 +303,8 @@ for (j in 1:ncol(sd.matrix.inter)) {
 apply(Cov.orac,2,mean)
 
 
-setwd("D:/Desktop/test")
 filename <- paste("RF-Continuous-IV-Setting",f.index,"-Interaction",inter.val,"-p",p,"-n",n,".RData",sep="")
 save.image(filename)
+
+
 
