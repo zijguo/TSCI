@@ -4,6 +4,7 @@ library(Matrix)
 # library(RcppArmadillo)
 
 ### data split(2) random forest
+### Wei, can you add some explanations about input and output?
 rf.2split <- function(X,y,num.trees=200,mtry=NULL,max.depth=0,min.node.size=5,MSE.thol=1e6,forest.save=F) {
   n <- nrow(X); p <- ncol(X)
   if (is.null(mtry)) mtry <- round(p/3)
@@ -19,14 +20,15 @@ rf.2split <- function(X,y,num.trees=200,mtry=NULL,max.depth=0,min.node.size=5,MS
   )
 
   # split the data into two parts A1 and A2
-  # use A2 to build the random forest and use
-  # A1 to do inference
+  # use A2 to build the random forest 
+  # use A1 to make the prediction for A1
   ind.sep <- cut(1:n, breaks = 2, labels = FALSE)
   A1.ind <- which(ind.sep==1, arr.ind = TRUE)
   A2.ind <- which(ind.sep==2, arr.ind = TRUE)
   Data.A1 <- Data[A1.ind, ]
   Data.A2 <- Data[A2.ind, ]
 
+  #### Wei, some more eplanations here?
   forest.A2 <- NULL;
   MSE.oob.A2 <- MSE.thol
   params.A2 <- NULL
@@ -44,7 +46,7 @@ rf.2split <- function(X,y,num.trees=200,mtry=NULL,max.depth=0,min.node.size=5,MS
       MSE.oob.A2 <- temp.A2$prediction.error
     }
   }
-  # nodes information of A1 on the random forest built on A2
+  # nodes information of A1 on the random forest built on A2 (Wei, can you clarify this sentence?)
   # nodes is a matrix of n.A1 by num.trees
   # the information of random forest built on A2 has been used here
   nodes.A1 <- predict(forest.A2, data = Data.A1, type = "terminalNodes")$predictions
@@ -196,10 +198,13 @@ try.inverse <- function(m) class(try(solve(m),silent=T))[1]=="matrix"
 
 
 ### calculate the standard error and conduct IV strength test
+### Wei, please add what are the inputs and output?
+### Wei, can we remove some inputs?
 statRF.2split <- function(Y.rep, D.rep, Y, D, VW.rep, VW, betaHat, weight, n, SigmaSqY, SigmaSqD, L=500, boot=FALSE, c0=0.01, C1=1.25, lam=0.05) {
   n.A1 <- length(D.rep)
   p <- ncol(VW.rep)
   ### check the inverse of t(VW.rep)%*%VW.rep
+  ### Wei, double check the following logic is correct.
   try.mat <- t(VW.rep)%*%VW.rep
   if (try.inverse(try.mat)) {
     invert <- FALSE
@@ -253,11 +258,11 @@ statRF.2split <- function(Y.rep, D.rep, Y, D, VW.rep, VW, betaHat, weight, n, Si
   iv.thol <- (1+c0)*tr.TRF*SigmaSqD + sqrt(tau.n)*SigmaSqD*Cn.V
 
 
-  ### the Signal Strength Test for splitting estimator
+  ### the Signal Strength Test for statistical inference with the splitting estimator
   signal.str <- sqrt(SigmaSqY*numerator)
   signal.thol <- C1*(SigmaYD*tr.TRF+sqrt(tr.TRF2)*sqrt(tau.n))
 
-  ### the Signal Strength Test for bias-corrected estimator
+  ### the Signal Strength Test for statistical inference with bias-corrected estimator
   signal.str.cor <- signal.str
   signal.thol.cor <- C1*sqrt(tr.TRF2)*sqrt(tau.n) + tau.n
 
