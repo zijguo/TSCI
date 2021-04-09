@@ -1,4 +1,4 @@
-### Start Date: Mar 6, 2021; Recently updated Date: April 3, 2021
+### Start Date: Mar 6, 2021; Recently updated Date: April 9, 2021
 ### TSCI: Random Forest with Binary IV and Continuous Treatment
 ### Setting: with interaction, compare random forest and regression model
 
@@ -18,19 +18,15 @@ A1gen<-function(rho,p){
   A1
 }
 
-# function to easily compute the SigmaSqY
-get.sigma <- function(beta, Y, D, VW) {
-  n <- length(Y)
-  Portho.VW <- diag(1,n,n) - VW%*%solve(t(VW)%*%VW)%*%t(VW)
-  sum((Portho.VW%*%(Y-beta*D))^2)/(n-ncol(VW))
-}
 
 ###### dimension change the dimension 5,10,20
 p = 10
-####please change this n = 1000, 2000
-n = 1000
+####please change this n = 1000, 2000, 3000, 5000
+n = 5000
+### binary or continuous IV
+binary.IV = FALSE
 ### setting, change across 1, 2, 3, 4, 5, 6, 7
-f.index = 5
+f.index = 4
 ##### change the interaction 0.5, 1, 1.5
 inter.val = 1
 #### a denotes the IV strength, set as 1
@@ -41,14 +37,14 @@ vio.index = 1
 ##### set tau as 1
 tau = 1
 #### the number of simulation numbers
-nsim = 20
+nsim = 10
 
 
 ##############################
 f_1 <- function(x){x+a*(x^2+0.5*x^4) -25/12}
 f_2 <- function(x){exp(2*a+x+0.5*x^3) - 2/5 * sinh(5/2)}
 f_3 <- function(x){a*(1*sin(2*pi*x) + 1.5*cos(2*pi*x))}
-f_4 <- function(x){exp(a*x)+a*(x^2+0.5*x^4)}
+f_4 <- function(x){exp(2*a+x+0.5*x^3)+a*(x^2+0.5*x^4)}
 rho1=0.5
 Cov<-(A1gen(rho1,p+1))
 mu<-rep(0,p+1)
@@ -63,8 +59,12 @@ if (p>5) {
 }
 
 
-Q = 5
-estimator.names <- c(paste("RF-2split-q",0:(Q-1),sep=""),paste("Cor-2split-q",0:(Q-1),sep=""))
+if (binary.IV) {
+  Q = 2
+} else {
+  Q = 5
+}
+estimator.names <- c(paste("RF-q",0:(Q-1),sep=""),paste("Cor-q",0:(Q-1),sep=""))
 Coef.matrix.inter<-matrix(NA,nrow=nsim,ncol=2*Q)
 sd.matrix.inter<-matrix(NA,nrow=nsim,ncol=2*Q)
 colnames(Coef.matrix.inter) <- colnames(sd.matrix.inter) <- estimator.names
@@ -86,18 +86,17 @@ SigmaSqY <- matrix(NA, nsim, Q)
 colnames(SigmaSqY) <- estimator.names[1:Q]
 # variance of delta
 SigmaSqD <- matrix(NA, nsim, 1)
-colnames(SigmaSqD) <- c("RF-2split")
 # covariance of epsilon and delta
 SigmaYD <- matrix(NA, nsim, Q)
 colnames(SigmaYD) <- estimator.names[1:Q]
 
 
 # the numerator of variance estimate, saved to speed up computation
-numerator <- matrix(NA, nsim, Q)
-colnames(numerator) <- paste("q",0:(Q-1),sep = "")
+DT.Sq <- matrix(NA, nsim, Q)
+colnames(DT.Sq) <- paste("q",0:(Q-1),sep = "")
 # trace of TRF.V and (TRF.V)^2
-tr.TRF2 <- tr.TRF <- matrix(NA,nsim,Q)
-colnames(tr.TRF) <- colnames(tr.TRF2) <- paste("q",0:(Q-1),sep = "")
+trace.T2 <- trace.T <- matrix(NA,nsim,Q)
+colnames(trace.T) <- colnames(trace.T2) <- paste("q",0:(Q-1),sep = "")
 
 
 ### selection
@@ -105,13 +104,13 @@ Q.max <- rep(NA,nsim)
 qhat.c <- rep(NA,nsim)
 qhat.r <- rep(NA,nsim)
 H <- matrix(NA,nsim,Q-1)
-SigmaSqY.max <- rep(NA,nsim)
+SigmaSqY.Qmax <- rep(NA,nsim)
 C.alpha <- matrix(NA,nsim,Q-1)
-Coef.robust <- matrix(NA,nsim,2)
-sd.robust <- matrix(NA,nsim,2)
-colnames(Coef.robust) <- colnames(sd.robust) <- c("RF-2split","Cor-2split")
-# TSLS validity 
-validity <- rep(0,nsim)
+Coef.robust <- matrix(NA,nsim,4)
+sd.robust <- matrix(NA,nsim,4)
+colnames(Coef.robust) <- colnames(sd.robust) <- c("RF-c","RF-Cor-c","RF-r","RF-Cor-r")
+# TSLS validity
+validity <- rep(NA,nsim)
 
 
 for(i in 1:nsim){
@@ -123,29 +122,35 @@ for(i in 1:nsim){
   W.original<-mvrnorm(n, mu, Cov)
   W<-pnorm(W.original)
   Z<-W[,1]
+  if (binary.IV) Z <- (Z>0.6)
   X<-W[,-1]
   ###### generate the data for the treatment variable D
-  if(f.index==1){
-    D=f_1(Z)+X%*%alpha+Error[,1]
+  if (binary.IV) {
+    D=Z*a+X%*%alpha+Z*X%*%inter+Error[,1]
+  } else {
+    if(f.index==1){
+      D=f_1(Z)+X%*%alpha+Error[,1]
+    }
+    if(f.index==2){
+      D=f_2(Z)+X%*%alpha+Error[,1]
+    }
+    if(f.index==3){
+      D=f_3(Z)+X%*%alpha+Error[,1]
+    }
+    if(f.index==4){
+      D=f_1(Z)+X%*%alpha+Z*X%*%inter+Error[,1]
+    }
+    if(f.index==5){
+      D=f_2(Z)+X%*%alpha+Z*X%*%inter+Error[,1]
+    }
+    if(f.index==6){
+      D=f_3(Z)+X%*%alpha+Z*X%*%inter+Error[,1]
+    }
+    if(f.index==7){
+      D=f_4(Z)+X%*%alpha+Error[,1]
+    }
   }
-  if(f.index==2){
-    D=f_2(Z)+X%*%alpha+Error[,1]
-  }
-  if(f.index==3){
-    D=f_3(Z)+X%*%alpha+Error[,1]
-  }
-  if(f.index==4){
-    D=f_1(Z)+X%*%alpha+Z*X%*%inter+Error[,1]
-  }
-  if(f.index==5){
-    D=f_2(Z)+X%*%alpha+Z*X%*%inter+Error[,1]
-  }
-  if(f.index==6){
-    D=f_3(Z)+X%*%alpha+Z*X%*%inter+Error[,1]
-  }
-  if(f.index==7){
-    D=f_4(Z)+X%*%alpha+Error[,1]
-  }
+
   ####### generate the outcome variable
   if(vio.index==0){
     Y=D*beta+ X%*% gamma+Error[,2]
@@ -165,8 +170,8 @@ for(i in 1:nsim){
   #if(vio.index==5){
   #  Y=D*beta+ tau*(Z^2-1)+ 1/20*sin(Z/2)+ X%*% gamma+Error[,2]
   #}
-  
-  
+
+
   ### random forest based methods
   forest.cov<-cbind(Z,W[,-1])
   ### set mtry according to p to save time
@@ -179,107 +184,48 @@ for(i in 1:nsim){
   ### set max.depth and min.node.size for tuning
   ### larger max.depth and smaller min.node.size means more complex trees
   max.depth <- 0; min.node.size <- c(5,10,20)
-  
-  
-  ### Data split random forest
+
+
+  ### Data splitting random forest
   # use 2 to denote 2split
-  forest.2 <- rf.2split(forest.cov,D,mtry=mtry,max.depth=max.depth,min.node.size=min.node.size)
+  forest.2 <- TSRF.fit(forest.cov,D,mtry=mtry,max.depth=max.depth,min.node.size=min.node.size)
+  A1.ind <- forest.2$A1.ind
   # weight matrix
-  weight.2 <- weight.2split(forest.2$nodes.A1)
-  D.rep.2 <- as.matrix(weight.2)%*%D[forest.2$A1.ind]
-  SigmaSqD[i,1] <- mean((D[forest.2$A1.ind]-D.rep.2)^2)
-  print(SigmaSqD[i,1])
-  Cov.aug<-cbind(Z^4,Z^3,Z^2,Z,W[,-1])
-  W.rep.2 <- as.matrix(weight.2)%*%Cov.aug[forest.2$A1.ind,]
-  Y.rep.2 <- as.matrix(weight.2)%*%Y[forest.2$A1.ind]
-  
-  
-  
-  TRF.V <- rep(list(NA),Q)
-  # conduct the computation for each violation space
-  for (q in 0:(Q-1)) {
-    if (q==Q-1) {
-      reg2.rf<-lm(Y.rep.2~D.rep.2+W.rep.2)
-      Coef.matrix.inter[i,q+1]<-coef(reg2.rf)[2]
-      SigmaSqY[i,q+1] <- get.sigma(coef(reg2.rf)[2], Y, D, cbind(1,Cov.aug))
-      stat.result2 <- statRF.2split(Y.rep.2, D.rep.2, Y[forest.2$A1.ind], D[forest.2$A1.ind],
-                                    cbind(1,W.rep.2), cbind(1,Cov.aug[forest.2$A1.ind,]),
-                                    coef(reg2.rf)[2], weight.2, n,
-                                    SigmaSqY[i,q+1], SigmaSqD[i,1])
-      Coef.matrix.inter[i,q+1+Q] <- stat.result2$beta.cor
-      SigmaYD[i, q+1] <- stat.result2$SigmaYD
-      sd.matrix.inter[i,q+1] <- stat.result2$Sd
-      iv.str[i,q+1] <- stat.result2$iv.str; iv.thol[i,q+1] <- stat.result2$iv.thol;
-      signal.str[i,q+1] <- stat.result2$signal.str; signal.thol[i,q+1] <- stat.result2$signal.thol;
-      signal.str.cor[i,q+1] <- stat.result2$signal.str.cor; signal.thol.cor[i,q+1] <- stat.result2$signal.thol.cor;
-      tr.TRF[i,q+1] <- stat.result2$tr.TRF
-      tr.TRF2[i,q+1] <- stat.result2$tr.TRF2
-      numerator[i,q+1] <- stat.result2$numerator
-      TRF.V[[q+1]] <- stat.result2$TRF.V
-    } else {
-      reg2.rf<-lm(Y.rep.2~D.rep.2+W.rep.2[,-(1:(Q-1-q))])
-      Coef.matrix.inter[i,q+1]<-coef(reg2.rf)[2]
-      SigmaSqY[i,q+1] <- get.sigma(coef(reg2.rf)[2], Y, D, cbind(1,Cov.aug[,-(1:(Q-1-q))]))
-      stat.result2 <- statRF.2split(Y.rep.2, D.rep.2, Y[forest.2$A1.ind], D[forest.2$A1.ind],
-                                    cbind(1,W.rep.2[,-(1:(Q-1-q))]), cbind(1,Cov.aug[forest.2$A1.ind,-(1:(Q-1-q))]),
-                                    coef(reg2.rf)[2], weight.2, n,
-                                    SigmaSqY[i,q+1],SigmaSqD[i,1])
-      Coef.matrix.inter[i,q+1+Q] <- stat.result2$beta.cor
-      SigmaYD[i, q+1] <- stat.result2$SigmaYD
-      sd.matrix.inter[i,q+1] <- stat.result2$Sd
-      sd.matrix.inter[i,q+1+Q] <- stat.result2$Sd.cor
-      iv.str[i,q+1] <- stat.result2$iv.str; iv.thol[i,q+1] <- stat.result2$iv.thol;
-      signal.str[i,q+1] <- stat.result2$signal.str; signal.thol[i,q+1] <- stat.result2$signal.thol;
-      signal.str.cor[i,q+1] <- stat.result2$signal.str.cor; signal.thol.cor[i,q+1] <- stat.result2$signal.thol.cor;
-      tr.TRF[i,q+1] <- stat.result2$tr.TRF
-      tr.TRF2[i,q+1] <- stat.result2$tr.TRF2
-      numerator[i,q+1] <- stat.result2$numerator
-      TRF.V[[q+1]] <- stat.result2$TRF.V
-    }
+  weight.2 <- TSRF.weight(forest.2$nodes.A1)
+
+
+  Cov.aug <- W[,-1]
+  for (q in 1:(Q-1)) {
+    Cov.aug<-cbind(Z^q,Cov.aug)
   }
-  
-  
+
+
   ### selection
-  ### all of q here are from 0 to 4, so use q+1 to index the columns
-  Q.max[i] <- sum(iv.str[i,]>=iv.thol[i,])-1
-  ### noise level defined by V_{Q.max}
-  SigmaSqY.max[i] <- SigmaSqY[i,Q.max[i]+1]
-  ### compute CRF.alpha
-  # difference between beta
-  beta.diff <- rep(NA,Q-1)
-  # the threshold of difference
-  thol <- rep(NA,Q-1)
-  for (q in 0:(Q-2)) {
-    ### H can be negative in some settings...
-    H[i,q+1] <- numerator[i,q+1]/(iv.str[i,q+1]^2)+numerator[i,q+2]/(iv.str[i,q+2]^2)-
-      2*t(D[forest.2$A1.ind])%*%TRF.V[[q+2]]%*%TRF.V[[q+1]]%*%D[forest.2$A1.ind]/(iv.str[i,q+1]*iv.str[i,q+2])
-    beta.diff[q+1] <- abs(Coef.matrix.inter[i,q+2]-Coef.matrix.inter[i,q+1])
-    thol[q+1] <- qnorm(1-0.05/log(n))*SigmaSqY.max[i]*sqrt(H[i,q+1])
-  }
-  C.alpha[i,] <- ifelse(beta.diff<=thol,0,1)
-  if (sum(C.alpha[i,])==Q-1) {
-    qhat.c[i] <- Q.max[i]-1
-  } else {
-    qhat.c[i] <- min(which(C.alpha[i,]==0))-1
-  }
-  qhat.r[i] <- min(qhat.c[i]+1, Q.max[i])
-  Coef.robust[i,1] <- Coef.matrix.inter[i,qhat.r[i]+1]
-  Coef.robust[i,2] <- Coef.matrix.inter[i,qhat.r[i]+Q+1]
-  sd.robust[i,1] <- sd.matrix.inter[i,qhat.r[i]+1]
-  sd.robust[i,2] <- sd.matrix.inter[i,qhat.r[i]+Q+1]
-  
-  if(qhat.c[i]>=1) {
-    validity[i] <- 1
-  }
-  
-  
+  outputs <- TSRF.Selection(Y, D, Cov.aug, A1.ind, weight.2, Q=Q)
+  ### outputs
+  Coef.matrix.inter[i,] <- outputs$Coef.vec
+  sd.matrix.inter[i,] <- outputs$sd.vec
+  SigmaSqY[i,] <- outputs$SigmaSqY
+  SigmaSqD[i] <- outputs$SigmaSqD
+  SigmaYD[i,] <- outputs$SigmaYD
+  iv.str[i,] <- outputs$iv.str; iv.thol[i,] <- outputs$iv.thol; DT.Sq[i,] <- outputs$DT.Sq
+  signal.str[i,] <- outputs$signal.str; signal.thol[i,] <- outputs$signal.thol;
+  signal.str.cor[i,] <- outputs$signal.str.cor; signal.thol.cor[i,] <- outputs$signal.thol.cor;
+  trace.T[i,] <- outputs$trace.T;   trace.T2[i,] <- outputs$trace.T2
+
+  Coef.robust[i,] <- outputs$Coef.robust; sd.robust[i,] <- outputs$sd.robust;
+  H[i,] <- outputs$H; C.alpha[i,] <- outputs$C.alpha;
+  SigmaSqY.Qmax[i] <- outputs$SigmaSqY.Qmax
+  Q.max[i] <- outputs$Q.max; qhat.c[i] <- outputs$qhat.c; qhat.r[i] <- outputs$qhat.r;
+  validity[i] <- outputs$validity
+
+
 }
 
 
 apply(Coef.matrix.inter,2,mean)
 apply(Coef.matrix.inter,2,sd)
 apply(sd.matrix.inter,2,mean)
-# apply(sd.matrix.boot,2,mean)
 
 
 ### compute coverage
@@ -288,7 +234,6 @@ colnames(Cov.mat) <- colnames(sd.matrix.inter)
 for (j in 1:ncol(sd.matrix.inter)) {
   Cov.mat[,j] <- ifelse(Coef.matrix.inter[,j]-1.96*sd.matrix.inter[,j]<=beta &
                           beta<=Coef.matrix.inter[,j]+1.96*sd.matrix.inter[,j],1,0)
-  
 }
 apply(Cov.mat,2,mean)
 
@@ -304,16 +249,22 @@ apply(Cov.orac,2,mean)
 
 
 ### coverage of robust selection
+apply(Coef.robust,2,mean)
+apply(sd.robust,2,mean)
+
 Cov.robust <- matrix(NA,nsim,ncol(sd.robust))
 colnames(Cov.robust) <- colnames(sd.robust)
 for (j in 1:ncol(sd.robust)) {
   Cov.robust[,j] <- ifelse(Coef.robust[,j]-1.96*sd.robust[,j]<=beta &
                            beta<=Coef.robust[,j]+1.96*sd.robust[,j],1,0)
 }
-apply(Cov.orac,2,mean)
+apply(Cov.robust,2,mean)
 
 
-
-filename <- paste("RF-Continuous-IV-Setting",f.index,"-Interaction",inter.val,"-p",p,"-n",n,".RData",sep="")
+if (binary.IV) {
+  filename <- paste("RF-BiIV-Strength",a,"-Violation",vio.index,"-Interaction",inter.val,"-p",p,"-n",n,".RData",sep="")
+} else {
+  filename <- paste("RF-ConIV-Setting",f.index,"-Violation",vio.index,"-Interaction",inter.val,"-p",p,"-n",n,".RData",sep="")
+}
 save.image(filename)
 
