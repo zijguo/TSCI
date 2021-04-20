@@ -2,7 +2,8 @@
 ### Functions: Two Stage Curvature Identification method using Random Forest
 ###            Estimate the treatment effect using the instrumental variable
 ###            approach with violation space selection
-
+### Changes: USe tau.n as log(n) instead of log(log(n))
+###          Use layer-selection instead of sequential method
 
 ### required packages
 library(ranger)
@@ -34,7 +35,7 @@ library(Matrix)
 TSRF.fit <- function(X,Y,num.trees=200,mtry=NULL,max.depth=0,min.node.size=5,MSE.thol=1e6,forest.save=F) {
   n <- nrow(X); p <- ncol(X)
   if (is.null(mtry)) mtry <- round(p/3)
-
+  
   Data <- data.frame(cbind(Y, X))
   names(Data) <- c("Y", paste("X", 1:p, sep = ""))
   ### grid search
@@ -44,7 +45,7 @@ TSRF.fit <- function(X,Y,num.trees=200,mtry=NULL,max.depth=0,min.node.size=5,MSE
     max.depth = max.depth,
     min.node.size = min.node.size
   )
-
+  
   # split the data into two parts A1 and A2
   # use A2 to build the random forest and use
   # A1 to do inference
@@ -53,7 +54,7 @@ TSRF.fit <- function(X,Y,num.trees=200,mtry=NULL,max.depth=0,min.node.size=5,MSE
   A2.ind <- which(ind.sep==2, arr.ind = TRUE)
   Data.A1 <- Data[A1.ind, ]
   Data.A2 <- Data[A2.ind, ]
-
+  
   forest.A2 <- NULL;
   MSE.oob.A2 <- MSE.thol
   params.A2 <- NULL
@@ -75,7 +76,7 @@ TSRF.fit <- function(X,Y,num.trees=200,mtry=NULL,max.depth=0,min.node.size=5,MSE
   # nodes is a matrix of n.A1 by num.trees
   # the information of random forest built on A2 has been used here
   nodes.A1 <- predict(forest.A2, data = Data.A1, type = "terminalNodes")$predictions
-
+  
   returnList <- list(forest.A2 = forest.A2,
                      params.A2 = params.A2,
                      A1.ind = A1.ind,
@@ -134,7 +135,7 @@ TSRF.weight <- function(nodes) {
 TSRF.crossfit <- function(X,Y,k=2,num.trees=200,mtry=NULL,max.depth=0,min.node.size=5,MSE.thol=1e6,forest.save=F) {
   n <- nrow(X);p<-ncol(X)
   if (is.null(mtry)) mtry <- round(p/3)
-
+  
   Data <- data.frame(cbind(Y, X))
   names(Data) <- c("Y", paste("X", 1:p, sep = ""))
   ### grid search
@@ -144,7 +145,7 @@ TSRF.crossfit <- function(X,Y,k=2,num.trees=200,mtry=NULL,max.depth=0,min.node.s
     max.depth = max.depth,
     min.node.size = min.node.size
   )
-
+  
   # split the data into k subsamples
   # use cross-ftting procedures
   ind.sep <- cut(1:n, breaks = k, labels = FALSE)
@@ -152,7 +153,7 @@ TSRF.crossfit <- function(X,Y,k=2,num.trees=200,mtry=NULL,max.depth=0,min.node.s
   for (j in 1:k) {
     k.ind[[j]] <- which(ind.sep==j)
   }
-
+  
   forest <- params <- rep(list(NA), k)
   ### use oob error to do hyper-parameter tuning
   MSE.oob <- rep(MSE.thol, k)
@@ -171,13 +172,13 @@ TSRF.crossfit <- function(X,Y,k=2,num.trees=200,mtry=NULL,max.depth=0,min.node.s
       }
     }
   }
-
+  
   ### nodes contains k matrices
   nodes <- list(rep(NA), k)
   for (j in 1:k) {
     nodes[[j]] <- predict(forest[[j]],data=Data[k.ind[[j]],],type="terminalNodes")$predictions
   }
-
+  
   returnList <- list(forest = forest,
                      params = params,
                      k.ind = k.ind,
@@ -222,7 +223,7 @@ TSRF.weight.crossfit <- function(nodes) {
 TSRF.full <- function(X,Y,num.trees=200,mtry=NULL,max.depth=0,min.node.size=5,MSE.thol=1e6,forest.save=F) {
   n <- nrow(X);p<-ncol(X)
   if (is.null(mtry)) mtry <- round(p/3)
-
+  
   Data <- data.frame(cbind(Y, X))
   names(Data) <- c("Y", paste("X", 1:p, sep = ""))
   ### grid search
@@ -232,7 +233,7 @@ TSRF.full <- function(X,Y,num.trees=200,mtry=NULL,max.depth=0,min.node.size=5,MS
     max.depth = max.depth,
     min.node.size = min.node.size
   )
-
+  
   # use oob error to do hyper-parameter tuning
   forest <- params <- NA
   MSE.oob <- MSE.thol
@@ -249,11 +250,11 @@ TSRF.full <- function(X,Y,num.trees=200,mtry=NULL,max.depth=0,min.node.size=5,MS
       MSE.oob <- temp$prediction.error
     }
   }
-
+  
   # conduct prediction
   predicted.values <- predict(forest,data = Data, type="response")$predictions
   nodes <- predict(forest,data = Data, type="terminalNodes")$predictions
-
+  
   returnList = list(forest = forest,
                     params = params,
                     predicted.values = predicted.values,
@@ -305,15 +306,15 @@ try.inverse <- function(m) class(try(solve(m),silent=T))[1]=="matrix"
 ###         signal.str: the right hand side of signal strength test for bias corrected estimator
 ###         Singularity: logical, whether t(VW.rep)%*%VW.rep is singular
 TSRF.stat <- function(Y.A1, D.A1, VW.A1, betaHat, weight, n, SigmaSqY, SigmaSqD, c0=0.01, C1=2, tau.n=NULL, lam=0.05) {
-
+  
   ### Constants
-  if (is.null(tau.n)) {tau.n <- log(log(n))}
+  if (is.null(tau.n)) {tau.n <- log(n)} # USE log(n) instead of log(log(n))
   n.A1 <- length(A1.ind); r.VW <- ncol(VW.A1) # the rank of (V, W)
   ### Compute the representations
   Y.rep <- as.matrix(weight)%*%Y.A1; D.rep <- as.matrix(weight)%*%D.A1
   VW.rep <- as.matrix(weight)%*%VW.A1
-
-
+  
+  
   ### check the inverse of t(VW.rep)%*%VW.rep
   try.mat <- t(VW.rep)%*%VW.rep
   if (try.inverse(try.mat)) {
@@ -326,7 +327,7 @@ TSRF.stat <- function(Y.A1, D.A1, VW.A1, betaHat, weight, n, SigmaSqY, SigmaSqD,
     Portho.VW.rep <- diag(1,n.A1,n.A1) - VW.rep %*% solve(try.mat+lam*diag(1,r.VW,r.VW)) %*% t(VW.rep)
     T.V <- t(as.matrix(weight))%*%Portho.VW.rep%*%as.matrix(weight)
   }
-
+  
   ### the standard error of the estimator and iv strength test
   trace.T <- sum(diag(T.V))
   trace.T2 <- sum(diag(T.V%*%T.V))
@@ -334,8 +335,8 @@ TSRF.stat <- function(Y.A1, D.A1, VW.A1, betaHat, weight, n, SigmaSqY, SigmaSqD,
   # this is the numerator of the variance of betaHat
   DT.Sq <- t(D.A1)%*%T.V%*%T.V%*%D.A1
   Sd <- sqrt(SigmaSqY*DT.Sq/(iv.str^2))
-
-
+  
+  
   ### standard errors of  bias-corrected estimator
   ### the normal method, assuming gaussian
   try.mat <- t(VW.A1)%*%VW.A1
@@ -348,24 +349,25 @@ TSRF.stat <- function(Y.A1, D.A1, VW.A1, betaHat, weight, n, SigmaSqY, SigmaSqD,
   SigmaYD <- t(D.A1-D.rep)%*%Portho.VW%*%(Y.A1-D.A1*betaHat)/(n.A1-r.VW)
   betaHat.cor <- betaHat - SigmaYD*trace.T/iv.str
   Sd.cor <- sqrt((SigmaSqY*DT.Sq+(SigmaSqD*SigmaSqY+SigmaYD^2)*(trace.T^2)/(n.A1-r.VW))/(iv.str^2))
-
-
+  
+  
   ### the IV strength test
   # cn <- sqrt(tau.n/trace.T)/tau.n*(2+sqrt(trace.T2/trace.T)/tau.n)+1/tau.n^2
   cn <- 0
   Cn.V <- sqrt(trace.T2) + 2*sqrt(trace.T)*max(tau.n, sqrt(iv.str/((1-cn)*SigmaSqD*trace.T)))
   iv.thol <- (1+c0)*trace.T*SigmaSqD + sqrt(tau.n)*SigmaSqD*Cn.V
-
-
+  iv.thol <- max(iv.thol,10)
+  
+  
   ### the Signal Strength Test for splitting estimator
   signal.str <- sqrt(SigmaSqY*DT.Sq)
   signal.thol <- C1*(SigmaYD*trace.T+sqrt(trace.T2)*sqrt(tau.n))
-
+  
   ### the Signal Strength Test for bias-corrected estimator
   signal.str.cor <- signal.str
   signal.thol.cor <- C1*sqrt(trace.T2)*sqrt(tau.n) + tau.n
-
-
+  
+  
   returnList <- list(Sd = Sd,
                      betaHat.cor = betaHat.cor,
                      Sd.cor = 1.1*Sd.cor,
@@ -437,36 +439,36 @@ get.sigma <- function(betaHat, Y, D, VW) {
 ###         qhat.r: violation space indicator selected using robust method
 ###         validity: the validity test of TSLS
 TSRF.Selection <- function(Y, D, Cov.aug, A1.ind, weight, Q, alpha=0.05, tuning=NULL) {
-
+  
   ### constants
   n <- length(Y); n.A1 <- length(A1.ind)
-  if (is.null(tuning)) {tuning <- log(log(n))}
+  if (is.null(tuning)) {tuning <- log(n)}
   Y.A1 <- Y[A1.ind]; D.A1 <- D[A1.ind]; Cov.aug.A1 <- Cov.aug[A1.ind,]
   ### compute the representations
   Y.rep <- as.matrix(weight)%*%Y.A1; D.rep <- as.matrix(weight)%*%D.A1
   Cov.rep <- as.matrix(weight)%*%Cov.aug.A1
-
+  
   ### the noise level of treatment model
   SigmaSqD <- mean((D.rep-D.A1)^2)
-
+  
   ### save estimates for selection part
   names <- c(paste("RF-q",0:(Q-1),sep=""),paste("RF-Cor-q",0:(Q-1),sep=""))
   Coef.vec <- sd.vec <- rep(NA,2*Q)
   names(Coef.vec) <- names(sd.vec) <- names
-
+  
   # IV strength test and signal strength test
   iv.str <- iv.thol <- signal.str <- signal.thol <- signal.str.cor <- signal.thol.cor <- rep(NA,Q)
   names(iv.str) <- names(iv.thol) <- names(signal.str) <- names(signal.thol) <-
     names(signal.str.cor) <- names(signal.thol.cor) <- paste("q",0:(Q-1),sep="")
-
+  
   # the noise level of outcome model and covariance of \epsilon and \delta
   SigmaSqY <- SigmaYD <- rep(NA,Q)
   names(SigmaSqY) <- names(SigmaYD) <- names[1:Q]
-
+  
   trace.T2 <- trace.T <- DT.Sq <- rep(NA,Q)
   names(trace.T) <- names(trace.T2) <- names(DT.Sq) <- paste("q",0:(Q-1),sep="")
-
-
+  
+  
   ### fixed violation space, compute necessary inputs of selection part
   # save T.V for the computation of H
   T.V <- rep(list(NA),Q)
@@ -497,44 +499,65 @@ TSRF.Selection <- function(Y, D, Cov.aug, A1.ind, weight, Q, alpha=0.05, tuning=
     DT.Sq[q+1] <- stat.inputs$DT.Sq
     T.V[[q+1]] <- stat.inputs$T.V
   }
-
-
+  
+  
   ### violation space selection
   ### all of the q here are from 0 to 4, so use q+1 to index the columns
-  # H is the variance of betaHat(q)-betaHat(q+1)
-  # C.alpha is a 0-1 vector indicating the difference of betaHat(q) and betaHat(q+1)
-  H <- C.alpha <- rep(NA,Q-1)
   ### robust estimator
   Coef.robust <- sd.robust <- rep(NA,4)
-  names(Coef.robust) <- names(sd.robust) <- c("RF-c","RF-Cor-c","RF-r","RF-Cor-r")
-
+  names(Coef.robust) <- names(sd.robust) <- c("RF-comp","RF-Cor-comp","RF-robust","RF-Cor-robust")
+  
   ivtest.vec <- iv.str>=iv.thol
   if (sum(ivtest.vec)==0) {
+    warning("Weak IV: Even if the IV is assumed to be valid, run OLS") # stop, output results of OLS
     Q.max <- 0
   } else {
     Q.max <- sum(ivtest.vec)-1
+    if (Q.max==0) {
+      ### if Q.max==0, redefine Qmax by log(log(n)), ignore at this stage
+      warning("Weak IV: IV Strenght Test Failed. Set Qmax as 1.")
+      Q.max <- 1
+    }
   }
-  # plus one if Q.max==0
-  if (Q.max==0) {Q.max <- Q.max+1}
+  
   ### noise level defined by V_{Q.max}
   SigmaSqY.Qmax <- SigmaSqY[Q.max+1]
+  # H is the variance of betaHat(q)-betaHat(q+1)
+  # C.alpha is a 0-1 vector indicating the difference of betaHat(q) and betaHat(q+1)
+  # H <- C.alpha <- rep(NA,Q.max)
   ### compute C.alpha
   # difference between betaHat.cor, use bias corrected estimator for selection
-  beta.diff <- rep(NA,Q-1)
+  # beta.diff <- rep(NA,Q.max)
   # the threshold of estimator difference
-  thol <- rep(NA,Q-1)
+  # thol <- rep(NA,Q.max)
+  
   ### selection
-  for (q in 0:(Q-2)) {
-    H[q+1] <- DT.Sq[q+1]/(iv.str[q+1]^2)+DT.Sq[q+2]/(iv.str[q+2]^2)-2*t(D.A1)%*%T.V[[q+2]]%*%T.V[[q+1]]%*%D.A1/(iv.str[q+1]*iv.str[q+2])
-    beta.diff[q+1] <- abs(Coef.vec[q+Q+2]-Coef.vec[q+Q+1])
-    thol[q+1] <- qnorm(1-alpha/tuning)*SigmaSqY.Qmax*sqrt(H[q+1])
+  ### define comparison matrix
+  H <- beta.diff <- matrix(0,Q.max,Q.max)
+  ### compute H matrix
+  for (q1 in 0:(Q.max-1)) {
+    for (q2 in (q1+1):(Q.max)) {
+      H[q1+1,q2] <- DT.Sq[q1+1]/(iv.str[q1+1]^2)+DT.Sq[q2+1]/(iv.str[q2+1]^2)-
+        2*t(D.A1)%*%T.V[[q1+1]]%*%T.V[[q2+1]]%*%D.A1/(iv.str[q1+1]*iv.str[q2+1])
+    }
   }
+  
+  ### compute beta difference matrix
+  for (q in 0:(Q.max-1)) {
+    beta.diff[q+1,(q+1):(Q.max)] <- abs(Coef.vec[q+Q+1]-Coef.vec[(q+Q+2):(Q.max+Q+1)])
+  }
+  
+  thol <- qnorm(1-alpha/(2*tuning))*sqrt(SigmaSqY.Qmax)*sqrt(H)
   C.alpha <- ifelse(beta.diff<=thol,0,1)
-  if (sum(C.alpha)==Q-1) {
-    qhat.c <- Q.max
+  ### a vector indicating the selection of each layer
+  sel.vec <- apply(C.alpha,1,sum)
+  if (all(sel.vec != 0)) {
+    qhat.c = Q.max
   } else {
-    qhat.c <- min(which(C.alpha==0))-1
+    qhat.c = min(which(sel.vec==0))-1
   }
+  
+  
   ### validity of TSLS
   if (qhat.c>=1) {
     validity <- 1
@@ -550,7 +573,7 @@ TSRF.Selection <- function(Y, D, Cov.aug, A1.ind, weight, Q, alpha=0.05, tuning=
   sd.robust[2] <- sd.vec[qhat.c+Q+1]
   sd.robust[3] <- sd.vec[qhat.r+1]
   sd.robust[4] <- sd.vec[qhat.r+Q+1]
-
+  
   returnList = list(Coef.vec = Coef.vec,
                     sd.vec = sd.vec,
                     Coef.robust = Coef.robust,
@@ -563,12 +586,12 @@ TSRF.Selection <- function(Y, D, Cov.aug, A1.ind, weight, Q, alpha=0.05, tuning=
                     signal.str = signal.str, signal.thol = signal.thol,
                     signal.str.cor = signal.str.cor,
                     signal.thol.cor = signal.thol.cor,
-                    H = H, C.alpha = C.alpha,
+                    # H = H, C.alpha = C.alpha,
                     Q.max = Q.max,
                     SigmaSqY.Qmax = SigmaSqY.Qmax,
                     qhat.c =qhat.c, qhat.r = qhat.r,
                     validity = validity)
-
+  
 }
 
 
@@ -590,14 +613,14 @@ TSRF.stat.crossfit <- function(Y, D, VW, weight, lam=0.05) {
   n <- length(Y);  r.VW <- ncol(VW)
   VW.rep <- as.matrix(weight)%*%VW; Y.rep <- as.matrix(weight)%*%Y
   D.rep <- as.matrix(weight)%*%Y
-
+  
   # point estimator
   reg.rf <- lm(Y.rep~D.rep+VW.rep[,-1])
   betaHat <- coef(reg.rf)[2]
-
+  
   ### noise level of outcome model
   SigmaSqY <- get.sigma(betaHat, Y, D, VW)
-
+  
   ### check the inverse of t(VW.rep)%*%VW.rep
   try.mat <- t(VW.rep)%*%VW.rep
   if (try.inverse(try.mat)) {
@@ -610,11 +633,11 @@ TSRF.stat.crossfit <- function(Y, D, VW, weight, lam=0.05) {
     Portho.VW <- diag(1,n,n) - VW.rep %*% solve(try.mat+lam*diag(1,r.VW,r.VW)) %*% t(VW.rep)
     T.V <- t(as.matrix(weight))%*%Portho.VW%*%as.matrix(weight)
   }
-
+  
   ### the standard error of the estimator and iv strength test
   iv.str <- t(D)%*%T.V%*%D
   Sd <- sqrt(SigmaSqY*(t(D)%*%T.V%*%T.V%*%D)/(iv.str)^2)
-
+  
   returnList <- list(betaHat = betaHat,
                      Sd = Sd,
                      singularity = singularity)
@@ -638,14 +661,14 @@ naiveRF.stat <- function(Y, D, VW, A1.ind, weight, lam=0.05) {
   n.A1 <- length(A1.ind); r.VW <- ncol(VW)
   Y.A1 <- Y[A1.ind]; VW.A1 <- VW[A1.ind,]; D.A1 <- D[A1.ind]
   D.rep <- as.matrix(weight)%*%D.A1
-
+  
   ### point estimator
   reg.rf <- lm(Y.A1~D.rep+VW.A1[,-1])
   betaHat <- coef(reg.rf)[2]
-
+  
   ### noise level of outcome model
   SigmaSqY <- get.sigma(betaHat, Y, D, VW)
-
+  
   ### check the inverse of t(VW.rep)%*%VW.rep
   try.mat <- t(VW.A1)%*%VW.A1
   if (try.inverse(try.mat)) {
@@ -657,7 +680,7 @@ naiveRF.stat <- function(Y, D, VW, A1.ind, weight, lam=0.05) {
     Portho.VW <- diag(1,n.A1,n.A1) - VW.A1 %*% solve(try.mat+lam*diag(1,r.VW,r.VW)) %*% t(VW.A1)
   }
   Sd <- sqrt(SigmaSqY/(t(D.rep)%*%Portho.VW%*%D.rep))
-
+  
   returnList <- list(betaHat = betaHat,
                      Sd = Sd,
                      singularity = singularity)
@@ -679,14 +702,14 @@ TSRF.stat.full <- function(Y, D, VW, weight, lam=0.05) {
   n <- length(Y); r.VW <- ncol(VW)
   D.rep <- as.matrix(weight)%*%D; Y.rep <- as.matrix(weight)%*%Y
   VW.rep <- as.matrix(weight)%*%VW
-
+  
   ### point estimator
   reg.rf <- lm(Y.rep~D.rep+VW.rep[,-1])
   betaHat <- coef(reg.rf)[2]
-
+  
   ### noise level of outcome model
   SigmaSqY <- get.sigma(betaHat, Y, D, VW)
-
+  
   ### check the inverse of t(VW.rep)%*%VW.rep
   try.mat <- t(VW.rep)%*%VW.rep
   if (try.inverse(try.mat)) {
@@ -699,11 +722,11 @@ TSRF.stat.full <- function(Y, D, VW, weight, lam=0.05) {
     Portho.VW <- diag(1,n,n) - VW.rep %*% solve(try.mat+lam*diag(1,r.VW,r.VW)) %*% t(VW.rep)
     T.V <- t(as.matrix(weight))%*%Portho.VW%*%as.matrix(weight)
   }
-
+  
   ### the standard error of the estimator
   iv.str <- t(D)%*%T.V%*%D
   Sd <- sqrt(SigmaSqY*(t(D)%*%T.V%*%T.V%*%D)/(iv.str)^2)
-
+  
   returnList <- list(betaHat = betaHat,
                      Sd = Sd,
                      singularity = singularity)
