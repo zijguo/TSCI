@@ -23,7 +23,7 @@ A1gen<-function(rho,p){
 ###### dimension change the dimension 5,10,20
 p = 5
 ####please change this n = 1000, 2000, 3000, 4000
-n = 5000
+n = 2000
 ### setting, change across 1, 2, 3, 4, 5, 6, 7
 f.index = 2
 ##### change the interaction 0.5, 1, 1.5
@@ -174,52 +174,52 @@ for(i in 1:nsim){
   validity[i,1] <- outputs.basis$validity
   
   
-  # ### random forest based methods
-  # forest.cov<-cbind(Z,W[,-1])
-  # ### set mtry according to p to save time
-  # # mtry from 1 to p if p<10, from p/3 to 2*p/3 if p>10
-  # if (p+1<=11) {
-  #   mtry = 1:(p+1)
-  # } else {
-  #   mtry = seq(round((p+1)/3), round(2*(p+1)/3), by=1)
-  # }
-  # ### set max.depth and min.node.size for tuning
-  # ### larger max.depth and smaller min.node.size means more complex trees
-  # max.depth <- 0; min.node.size <- c(5,10,20)
-  # 
-  # 
-  # ### Data splitting random forest
-  # # use 2 to denote 2split
-  # forest.2 <- TSRF.fit(forest.cov,D,mtry=mtry,max.depth=max.depth,min.node.size=min.node.size)
-  # A1.ind <- forest.2$A1.ind
-  # # weight matrix
-  # weight.2 <- TSRF.weight(forest.2$nodes.A1)
-  # 
-  # 
-  # Cov.aug <- W[,-1]
-  # for (q in 1:(Q-1)) {
-  #   Cov.aug<-cbind(Z^q,Cov.aug)
-  # }
-  # 
-  # 
-  # ### selection
-  # outputs <- TSRF.Selection(Y, D, Cov.aug, A1.ind, weight.2, Q=Q)
-  # ### outputs
-  # Coef.matrix.inter[i,] <- outputs$Coef.vec
-  # sd.matrix.inter[i,] <- outputs$sd.vec
-  # SigmaSqY[i,] <- outputs$SigmaSqY
-  # SigmaSqD[i] <- outputs$SigmaSqD
-  # SigmaYD[i,] <- outputs$SigmaYD
-  # iv.str[i,] <- outputs$iv.str; iv.thol[i,] <- outputs$iv.thol; DT.Sq[i,] <- outputs$DT.Sq
-  # signal.str[i,] <- outputs$signal.str; signal.thol[i,] <- outputs$signal.thol;
-  # signal.str.cor[i,] <- outputs$signal.str.cor; signal.thol.cor[i,] <- outputs$signal.thol.cor;
-  # trace.T[i,] <- outputs$trace.T;   trace.T2[i,] <- outputs$trace.T2
-  # 
-  # Coef.robust[i,3:6] <- outputs$Coef.robust; sd.robust[i,3:6] <- outputs$sd.robust;
-  # # H[i,] <- outputs$H; C.alpha[i,] <- outputs$C.alpha;
-  # SigmaSqY.Qmax[i,2] <- outputs$SigmaSqY.Qmax
-  # Q.max[i,2] <- outputs$Q.max; qhat.c[i,2] <- outputs$qhat.c; qhat.r[i,2] <- outputs$qhat.r;
-  # validity[i,2] <- outputs$validity
+  ### random forest based methods
+  forest.cov<-cbind(Z,W[,-1])
+  ### set mtry according to p to save time
+  # mtry from 1 to p if p<10, from p/3 to 2*p/3 if p>10
+  if (p+1<=11) {
+    mtry = 1:(p+1)
+  } else {
+    mtry = seq(round((p+1)/3), round(2*(p+1)/3), by=1)
+  }
+  ### set max.depth and min.node.size for tuning
+  ### larger max.depth and smaller min.node.size means more complex trees
+  max.depth <- 0; min.node.size <- c(5,10,20)
+
+
+  ### Data splitting random forest
+  # use 2 to denote 2split
+  forest.2 <- TSRF.fit(forest.cov,D,mtry=mtry,max.depth=max.depth,min.node.size=min.node.size)
+  A1.ind <- forest.2$A1.ind
+  # weight matrix
+  weight.2 <- TSRF.weight(forest.2$nodes.A1)
+
+
+  Cov.aug <- W[,-1]
+  for (q in 1:(Q-1)) {
+    Cov.aug<-cbind(Z^q,Cov.aug)
+  }
+
+
+  ### selection
+  outputs <- TSRF.Selection(Y, D, Cov.aug, A1.ind, weight.2, Q=Q)
+  ### outputs
+  Coef.matrix.inter[i,] <- outputs$Coef.vec
+  sd.matrix.inter[i,] <- outputs$sd.vec
+  SigmaSqY[i,] <- outputs$SigmaSqY
+  SigmaSqD[i] <- outputs$SigmaSqD
+  SigmaYD[i,] <- outputs$SigmaYD
+  iv.str[i,] <- outputs$iv.str; iv.thol[i,] <- outputs$iv.thol; DT.Sq[i,] <- outputs$DT.Sq
+  signal.str[i,] <- outputs$signal.str; signal.thol[i,] <- outputs$signal.thol;
+  signal.str.cor[i,] <- outputs$signal.str.cor; signal.thol.cor[i,] <- outputs$signal.thol.cor;
+  trace.T[i,] <- outputs$trace.T;   trace.T2[i,] <- outputs$trace.T2
+
+  Coef.robust[i,3:6] <- outputs$Coef.robust; sd.robust[i,3:6] <- outputs$sd.robust;
+  # H[i,] <- outputs$H; C.alpha[i,] <- outputs$C.alpha;
+  SigmaSqY.Qmax[i,2] <- outputs$SigmaSqY.Qmax
+  Q.max[i,2] <- outputs$Q.max; qhat.c[i,2] <- outputs$qhat.c; qhat.r[i,2] <- outputs$qhat.r;
+  validity[i,2] <- outputs$validity
   
   
 }
