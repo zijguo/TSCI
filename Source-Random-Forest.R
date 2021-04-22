@@ -308,7 +308,7 @@ try.inverse <- function(m) class(try(solve(m),silent=T))[1]=="matrix"
 TSRF.stat <- function(Y.A1, D.A1, VW.A1, betaHat, weight, n, SigmaSqY, SigmaSqD, c0=0.01, C1=2, tau.n=NULL, lam=0.05) {
   
   ### Constants
-  if (is.null(tau.n)) {tau.n <- log(n)} # USE log(n) instead of log(log(n))
+  if (is.null(tau.n)) {tau.n <- log(log(n))}
   n.A1 <- length(A1.ind); r.VW <- ncol(VW.A1) # the rank of (V, W)
   ### Compute the representations
   Y.rep <- as.matrix(weight)%*%Y.A1; D.rep <- as.matrix(weight)%*%D.A1
@@ -356,6 +356,7 @@ TSRF.stat <- function(Y.A1, D.A1, VW.A1, betaHat, weight, n, SigmaSqY, SigmaSqD,
   cn <- 0
   Cn.V <- sqrt(trace.T2) + 2*sqrt(trace.T)*max(tau.n, sqrt(iv.str/((1-cn)*SigmaSqD*trace.T)))
   iv.thol <- (1+c0)*trace.T*SigmaSqD + sqrt(tau.n)*SigmaSqD*Cn.V
+  # iv.thol <- (1+c0)*trace.T*SigmaSqD
   iv.thol <- max(iv.thol,10)
   
   
@@ -442,7 +443,7 @@ TSRF.Selection <- function(Y, D, Cov.aug, A1.ind, weight, Q, alpha=0.05, tuning=
   
   ### constants
   n <- length(Y); n.A1 <- length(A1.ind)
-  if (is.null(tuning)) {tuning <- log(n)}
+  if (is.null(tuning)) {tuning <- log(log(n))}
   Y.A1 <- Y[A1.ind]; D.A1 <- D[A1.ind]; Cov.aug.A1 <- Cov.aug[A1.ind,]
   ### compute the representations
   Y.rep <- as.matrix(weight)%*%Y.A1; D.rep <- as.matrix(weight)%*%D.A1
