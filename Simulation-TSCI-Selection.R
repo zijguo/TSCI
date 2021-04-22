@@ -1,4 +1,4 @@
-### Start Date: Mar 6, 2021; Recently updated Date: April 9, 2021
+### Start Date: Mar 6, 2021; Recently updated Date: April 22, 2021
 ### TSCI: Random Forest with Binary IV and Continuous Treatment
 ### Setting: with interaction, compare random forest and regression model
 
@@ -21,11 +21,11 @@ A1gen<-function(rho,p){
 
 
 ###### dimension change the dimension 5,10,20
-p = 5
+p = 20
 ####please change this n = 1000, 2000, 3000, 4000
 n = 2000
 ### setting, change across 1, 2, 3, 4, 5, 6, 7
-f.index = 2
+f.index = 6
 ##### change the interaction 0.5, 1, 1.5
 inter.val = 1
 #### a denotes the IV strength, set as 1
@@ -65,6 +65,8 @@ sd.matrix.inter<-matrix(NA,nrow=nsim,ncol=2*Q)
 colnames(Coef.matrix.inter) <- colnames(sd.matrix.inter) <- estimator.names
 
 
+### inflation factor of threshold of iv strength test
+c0 = 4
 # IV strength test
 iv.str <- iv.thol <- matrix(NA,nrow=nsim,ncol=Q)
 colnames(iv.str) <- colnames(iv.thol) <- paste("q",0:(Q-1),sep="")
@@ -146,7 +148,7 @@ for(i in 1:nsim){
     Y=D*beta+ tau*Z+ X%*% gamma+Error[,2]
   }
   if(vio.index==2){
-    Y=D*beta+ tau*(Z^2-1)+ X%*% gamma+Error[,2]
+    Y=D*beta+ tau*(Z^2+Z-1)+ X%*% gamma+Error[,2] # difficult if no Z
   }
   if(vio.index==3){
     Y=D*beta+ tau*Z^3+ X%*% gamma+Error[,2]
@@ -166,7 +168,7 @@ for(i in 1:nsim){
   M <- basis.fit$M
   knot <- basis.fit$knot
   
-  outputs.basis <- TSCI.basis.selection(Y, D, W, D.rep.basis, knot, M, Q=5)
+  outputs.basis <- TSCI.basis.selection(Y, D, W, D.rep.basis, knot, M, Q=Q)
   Coef.robust[i,1:2] <- outputs.basis$Coef.vec
   sd.robust[i,1:2] <- outputs.basis$sd.vec
   SigmaSqY.Qmax[i,1] <- outputs.basis$SigmaSqY.Qmax
