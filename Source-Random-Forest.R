@@ -511,7 +511,7 @@ TSRF.Selection <- function(Y, D, Cov.aug, A1.ind, weight, Q, alpha=0.05, tuning=
   ivtest.vec <- iv.str>=iv.thol
   if (sum(ivtest.vec)==0) {
     warning("Weak IV: Even if the IV is assumed to be valid, run OLS") # stop, output results of OLS
-    Q.max <- 0
+    Q.max <- 1
   } else {
     Q.max <- sum(ivtest.vec)-1
     if (Q.max==0) {
