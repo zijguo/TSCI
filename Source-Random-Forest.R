@@ -95,22 +95,46 @@ TSRF.fit <- function(X,Y,num.trees=200,mtry=NULL,max.depth=0,min.node.size=5,MSE
 ###               to the leaf node index of the jth tree where the ith sample falls into
 ### Output: w.mat: the n_A1 by n_A1 symmetric sparse weight matrix(class dgCMatrix), the ith row represents
 ###                the weights of each sample on the prediction of the ith outcome
+# TSRF.weight <- function(nodes) {
+#   n.A1 <- nrow(nodes); num.trees <- ncol(nodes)
+#   out.w <- matrix(0,n.A1,n.A1)
+#   for (j in 1:num.trees) {
+#     w.mat <- matrix(0, n.A1, n.A1)
+#     for (i in 1:n.A1) {
+#       ind <- nodes[,j]==nodes[i, j]
+#       ind[i] <- FALSE # to remove self-prediction
+#       w <- 1/sum(ind)
+#       w.vec <- ifelse(ind,yes=w,no=0)
+#       w.mat[i, ] <- w.vec/num.trees
+#     }
+#     out.w <- out.w + w.mat
+#   }
+#   # out.w <- out.w/rowSums(out.w)
+#   out.w <- Matrix(out.w, sparse = TRUE)
+#   return(out.w)
+# }
+
+
+### speed up version
 TSRF.weight <- function(nodes) {
   n.A1 <- nrow(nodes); num.trees <- ncol(nodes)
-  w.list <- rep(list(NA), num.trees)
+  out.w <- matrix(0,n.A1,n.A1)
   for (j in 1:num.trees) {
     w.mat <- matrix(0, n.A1, n.A1)
-    for (i in 1:n.A1) {
-      ind <- nodes[,j]==nodes[i, j]
-      ind[i] <- FALSE # to remove self-prediction
-      w <- 1/sum(ind)
+    unique.nodes <- unique(nodes[,j])
+    for (i in 1:length(unique.nodes)) {
+      ind <- nodes[,j]==unique.nodes[i]
+      inverse.w <- sum(ind)
+      w <- 1/(inverse.w-1)  # to remove self-prediction
       w.vec <- ifelse(ind,yes=w,no=0)
-      w.mat[i, ] <- w.vec/num.trees
+      w.mat[ind,] <- matrix(rep(w.vec,inverse.w),inverse.w,byrow=T)/num.trees
     }
-    w.list[[j]] <- Matrix(w.mat, sparse = TRUE)
+    diag(w.mat) <- 0
+    out.w <- out.w + w.mat
   }
-  w.mat <- Reduce("+", w.list)
-  return(w.mat)
+  # out.w <- out.w/rowSums(out.w)
+  out.w <- Matrix(out.w, sparse = T)
+  return(out.w)
 }
 
 
@@ -308,12 +332,11 @@ try.inverse <- function(m) class(try(solve(m),silent=T))[1]=="matrix"
 TSRF.stat <- function(Y.A1, D.A1, VW.A1, betaHat, weight, n, SigmaSqY, SigmaSqD, c0=0.01, C1=2, tau.n=NULL, lam=0.05) {
   
   ### Constants
-  if (is.null(tau.n)) {tau.n <- log(log(n))}
+  if (is.null(tau.n)) {tau.n <- log(n)}
   n.A1 <- length(A1.ind); r.VW <- ncol(VW.A1) # the rank of (V, W)
   ### Compute the representations
   Y.rep <- as.matrix(weight)%*%Y.A1; D.rep <- as.matrix(weight)%*%D.A1
   VW.rep <- as.matrix(weight)%*%VW.A1
-  
   
   ### check the inverse of t(VW.rep)%*%VW.rep
   try.mat <- t(VW.rep)%*%VW.rep
@@ -354,10 +377,11 @@ TSRF.stat <- function(Y.A1, D.A1, VW.A1, betaHat, weight, n, SigmaSqY, SigmaSqD,
   ### the IV strength test
   # cn <- sqrt(tau.n/trace.T)/tau.n*(2+sqrt(trace.T2/trace.T)/tau.n)+1/tau.n^2
   cn <- 0
-  Cn.V <- sqrt(trace.T2) + 2*sqrt(trace.T)*max(tau.n, sqrt(iv.str/((1-cn)*SigmaSqD*trace.T)))
+  # Cn.V <- sqrt(trace.T2) + 2*sqrt(trace.T)*max(tau.n, sqrt(iv.str/((1-cn)*SigmaSqD*trace.T)))
+  Cn.V <- 2*sqrt(iv.str)
   iv.thol <- (1+c0)*trace.T*SigmaSqD + sqrt(tau.n)*SigmaSqD*Cn.V
   # iv.thol <- (1+c0)*trace.T*SigmaSqD
-  iv.thol <- max(iv.thol,10)
+  iv.thol <- max(iv.thol,50)
   
   
   ### the Signal Strength Test for splitting estimator
@@ -443,7 +467,7 @@ TSRF.Selection <- function(Y, D, Cov.aug, A1.ind, weight, Q, alpha=0.05, tuning=
   
   ### constants
   n <- length(Y); n.A1 <- length(A1.ind)
-  if (is.null(tuning)) {tuning <- log(log(n))}
+  if (is.null(tuning)) {tuning <- log(n)/2}
   Y.A1 <- Y[A1.ind]; D.A1 <- D[A1.ind]; Cov.aug.A1 <- Cov.aug[A1.ind,]
   ### compute the representations
   Y.rep <- as.matrix(weight)%*%Y.A1; D.rep <- as.matrix(weight)%*%D.A1
@@ -532,6 +556,7 @@ TSRF.Selection <- function(Y, D, Cov.aug, A1.ind, weight, Q, alpha=0.05, tuning=
   # the threshold of estimator difference
   # thol <- rep(NA,Q.max)
   
+
   ### selection
   ### define comparison matrix
   H <- beta.diff <- matrix(0,Q.max,Q.max)
@@ -545,10 +570,27 @@ TSRF.Selection <- function(Y, D, Cov.aug, A1.ind, weight, Q, alpha=0.05, tuning=
   
   ### compute beta difference matrix
   for (q in 0:(Q.max-1)) {
-    beta.diff[q+1,(q+1):(Q.max)] <- abs(Coef.vec[q+Q+1]-Coef.vec[(q+Q+2):(Q.max+Q+1)])
+    beta.diff[q+1,(q+1):(Q.max)] <- abs(Coef.vec[q+Q+1]-Coef.vec[(q+Q+2):(Q.max+Q+1)]) # use original or bias-corrected?
   }
   
-  thol <- qnorm(1-alpha/(2*tuning))*sqrt(SigmaSqY.Qmax)*sqrt(H)
+  
+  ## bootstrap for the quantile of the difference
+  max.val <- rep(NA,300)
+  for (i in 1:300) {
+    diff.mat <- matrix(0,Q.max,Q.max)
+    eps <- rnorm(n.A1, 0, sqrt(SigmaSqY.Qmax))
+    for (q1 in 0:(Q.max-1)) {
+      for (q2 in (q1+1):(Q.max)) {
+        diff.mat[q1+1, q2] <- t(D.A1)%*%T.V[[q2+1]]%*%eps/(iv.str[q2+1])-t(D.A1)%*%T.V[[q1+1]]%*%eps/(iv.str[q1+1])
+      }
+    }
+    diff.mat <- abs(diff.mat)/sqrt(SigmaSqY.Qmax*H)
+    max.val[i] <- max(diff.mat,na.rm = TRUE)
+  }
+  z.alpha <- quantile(max.val,1-alpha/2)
+  
+  
+  thol <- z.alpha*sqrt(SigmaSqY.Qmax)*sqrt(H)
   C.alpha <- ifelse(beta.diff<=thol,0,1)
   ### a vector indicating the selection of each layer
   sel.vec <- apply(C.alpha,1,sum)
