@@ -1,4 +1,4 @@
-### Start Date: Mar 6, 2021; Recently updated Date: April 22, 2021
+### Start Date: Mar 6, 2021; Recently updated Date: April 27, 2021
 ### TSCI: Random Forest with Binary IV and Continuous Treatment
 ### Setting: with interaction, compare random forest and regression model
 
@@ -21,11 +21,11 @@ A1gen<-function(rho,p){
 
 
 ###### dimension change the dimension 5,10,20
-p = 20
+p = 10
 ####please change this n = 1000, 2000, 3000, 4000
-n = 2000
+n = 1000
 ### setting, change across 1, 2, 3, 4, 5, 6, 7
-f.index = 6
+f.index = 2
 ##### change the interaction 0.5, 1, 1.5
 inter.val = 1
 #### a denotes the IV strength, set as 1
@@ -195,8 +195,10 @@ for(i in 1:nsim){
   forest.2 <- TSRF.fit(forest.cov,D,mtry=mtry,max.depth=max.depth,min.node.size=min.node.size)
   A1.ind <- forest.2$A1.ind
   # weight matrix
+  timestart <- Sys.time()
   weight.2 <- TSRF.weight(forest.2$nodes.A1)
-
+  timeend <- Sys.time()
+  timeend - timestart
 
   Cov.aug <- W[,-1]
   for (q in 1:(Q-1)) {
