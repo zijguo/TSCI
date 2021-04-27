@@ -300,6 +300,7 @@ TSCI.basis.fit <- function(W, D, folds=5, knots=NULL) {
 ### inver.design
 TSCI.basis.selection <- function(Y, D, W, D.rep, knot, M, Q=5) {
   Z <- W[,1]; X <- W[,-1]
+  n <- length(Y)
   sd.D <- sqrt(mean((D-D.rep)^2))
   Q<-min(Q, M-1)
 
@@ -311,6 +312,8 @@ TSCI.basis.selection <- function(Y, D, W, D.rep, knot, M, Q=5) {
   noise.vec<-rep(NA,Q)
   Coef.vec <- sd.vec <- rep(NA,2)
   names(Coef.vec) <- names(sd.vec) <- c("Basis-comp","Basis-robust")
+  Cov.list <- rep(list(NA),Q)
+  D.resid.list <- rep(list(NA),Q)
   ####### do the computation from violation space 1 (poly 0) to Q (poly Q-1)
   for(index in 1:Q){
     q=index-1
@@ -330,10 +333,15 @@ TSCI.basis.selection <- function(Y, D, W, D.rep, knot, M, Q=5) {
       }
       Cov.total<-cbind(V.rep, W[,-1])
     }
+    Cov.list[[index]] <- Cov.total
+    
+    
     D.resid<-resid(lm(D.rep~Cov.total))
+    D.resid.list[[index]] <- D.resid
     str.vec[index]<-sum(D.resid^2)/(sd.D^2)
     taun<-1/log(M-q)
-    thre.vec[index]<-(M-q)+sqrt((M-q)*log(M-q))*(1+2*max(taun,sqrt(str.vec[index]/(M-q))))
+    # thre.vec[index]<-(M-q)+sqrt((M-q)*log(M-q))*(1+2*max(taun,sqrt(str.vec[index]/(M-q))))
+    thre.vec[index]<-(M-q)+sqrt(log(M-q))*2*sqrt(str.vec[index])
     thre.vec[index]<-(sd.D^2)*thre.vec[index]
     MODEL.Y <- ESTIMATE(W, Y, knot)
     Y.rep<- pred(MODEL.Y, W)
@@ -356,12 +364,12 @@ TSCI.basis.selection <- function(Y, D, W, D.rep, knot, M, Q=5) {
   # str.iv.set<-(str.vec>thre.vec)*(str.vec>10)
   if (sum(str.iv.set)==0) {
     warning("Weak IV: Even if the IV is assumed to be valid, run OLS") # stop, output results of OLS
-    Q.max <- 0
+    Q.max <- 1
   } else {
     Q.max <- sum(str.iv.set)-1
     if (Q.max==0) {
       ### if Q.max==0, redefine Qmax by log(log(n)), ignore at this stage
-      warning("Weak IV: IV Strenght Test Failed. Set Qmax as 1.")
+      warning("Weak IV: If the IV is linearly invalid. Set Qmax as 1.")
       Q.max <- 1
     }
   }
@@ -372,8 +380,31 @@ TSCI.basis.selection <- function(Y, D, W, D.rep, knot, M, Q=5) {
   for (q in 0:(Q.max-1)) {
     test.diff[q+1,(q+1):(Q.max)] <- abs(prop.vec[q+1]-prop.vec[(q+2):(Q.max+1)])
     H.vec <- inver.design[(q+2):(Q.max+1)] - inver.design[q+1]
-    test.threshold[q+1,(q+1):(Q.max)] <- qnorm(1-0.05/log(M))*sqrt(noise.vec[Q.max+1])*sqrt(H.vec)
+    test.threshold[q+1,(q+1):(Q.max)] <- sqrt(noise.vec[Q.max+1])*sqrt(H.vec) # need to multiply by z.alpha
   }
+  
+  
+  ### bootstrap to get z.alpha
+  max.val <- rep(NA,300)
+  for (i in 1:300) {
+    diff.mat <- matrix(0,Q.max,Q.max)
+    eps <- rnorm(n, 0, sqrt(noise.vec[Q.max+1]))
+    for (q1 in 0:(Q.max-1)) {
+      for (q2 in (q1+1):(Q.max)) {
+        MODEL.eps <- ESTIMATE(W,eps,knot)
+        eps.rep <- pred(MODEL.eps,W)
+        eps.resid1 <- resid(lm(eps.rep~Cov.list[[q1+1]]))
+        eps.resid2 <- resid(lm(eps.rep~Cov.list[[q2+1]]))
+        diff.mat[q1+1, q2] <- sum(D.resid.list[[q2+1]]*eps.resid2)/str.vec[q2+1]-sum(D.resid.list[[q1+1]]*eps.resid1)/str.vec[q1+1]
+      }
+    }
+    diff.mat <- abs(diff.mat)/test.threshold
+    max.val[i] <- max(diff.mat,na.rm = TRUE)
+  }
+  z.alpha <- quantile(max.val,0.975)
+  test.threshold <- z.alpha*test.threshold
+  
+  
   C.alpha <- ifelse(test.diff<=test.threshold,0,1)
   # layer selection
   sel.vec <- apply(C.alpha,1,sum)
