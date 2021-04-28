@@ -376,12 +376,17 @@ TSRF.stat <- function(Y.A1, D.A1, VW.A1, betaHat, weight, n, SigmaSqY, SigmaSqD,
   
   ### the IV strength test
   # cn <- sqrt(tau.n/trace.T)/tau.n*(2+sqrt(trace.T2/trace.T)/tau.n)+1/tau.n^2
-  cn <- 0
+  # cn <- 0
   # Cn.V <- sqrt(trace.T2) + 2*sqrt(trace.T)*max(tau.n, sqrt(iv.str/((1-cn)*SigmaSqD*trace.T)))
-  Cn.V <- 2*sqrt(iv.str)
-  iv.thol <- (1+c0)*trace.T*SigmaSqD + sqrt(tau.n)*SigmaSqD*Cn.V
+  # Cn.V <- 2*sqrt(iv.str)
+  # iv.thol <- (1+c0)*trace.T*SigmaSqD + sqrt(tau.n)*SigmaSqD*Cn.V
   # iv.thol <- (1+c0)*trace.T*SigmaSqD
-  iv.thol <- max(iv.thol,50)
+  boot.vec <- rep(NA,300)
+  for (i in 1:300) {
+    delta <- rnorm(n.A1, 0, sqrt(SigmaSqD))
+    boot.vec[i] <- t(delta)%*%T.V%*%delta + 2*t(D.rep)%*%T.V%*%delta
+  }
+  iv.thol <- max(quantile(boot.vec,1-0.05/2),30)
   
   
   ### the Signal Strength Test for splitting estimator
