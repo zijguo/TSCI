@@ -341,8 +341,18 @@ TSCI.basis.selection <- function(Y, D, W, D.rep, knot, M, Q=5) {
     str.vec[index]<-sum(D.resid^2)/(sd.D^2)
     taun<-1/log(M-q)
     # thre.vec[index]<-(M-q)+sqrt((M-q)*log(M-q))*(1+2*max(taun,sqrt(str.vec[index]/(M-q))))
-    thre.vec[index]<-(M-q)+sqrt(log(M-q))*2*sqrt(str.vec[index])
-    thre.vec[index]<-(sd.D^2)*thre.vec[index]
+    ### bootstrap to get the threshold
+    boot.vec <- rep(NA,300)
+    for (i in 1:300) {
+      delta <- rnorm(n,0,sd.D)
+      MODEL.delta <- ESTIMATE(W,delta,knot)
+      delta.rep <- pred(MODEL.delta,W)
+      delta.resid <- resid(lm(delta.rep~Cov.total))
+      boot.vec[i] <- sum(delta.resid^2) + 2*sum(D.resid*delta.resid)
+    }
+    thre.vec[index] <- max(quantile(boot.vec,0.975),30)
+    # thre.vec[index]<-(M-q)+sqrt(log(M-q))*2*sqrt(str.vec[index])
+    # thre.vec[index]<-(sd.D^2)*thre.vec[index]
     MODEL.Y <- ESTIMATE(W, Y, knot)
     Y.rep<- pred(MODEL.Y, W)
     #D.resid<-resid(lm(D.rep~Cov.total,-1))
@@ -355,7 +365,7 @@ TSCI.basis.selection <- function(Y, D, W, D.rep, knot, M, Q=5) {
     sigsq.hat<-mean((Y.res-prop.vec.all[index]*D.res)^2)
     noise.vec[index]<-sigsq.hat
     inver.design[index]<-1/sum(D.resid^2)
-    scale<-1
+    scale<-1.05
     se.vec[index]<-scale*sqrt(sigsq.hat/sum(D.resid^2))
   }
   ### selection
