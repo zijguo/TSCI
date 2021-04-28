@@ -21,11 +21,11 @@ A1gen<-function(rho,p){
 
 
 ###### dimension change the dimension 5,10,20
-p = 10
+p = 20
 ####please change this n = 1000, 2000, 3000, 4000
-n = 1000
+n = 2000
 ### setting, change across 1, 2, 3, 4, 5, 6, 7
-f.index = 2
+f.index = 3
 ##### change the interaction 0.5, 1, 1.5
 inter.val = 1
 #### a denotes the IV strength, set as 1
@@ -97,7 +97,7 @@ colnames(trace.T) <- colnames(trace.T2) <- paste("q",0:(Q-1),sep = "")
 
 
 ### selection
-Q.max <- matrix(NA,nsim,2)
+Q.max  <- matrix(NA,nsim,2)
 colnames(Q.max) <- c("Basis","RF")
 qhat.c <- qhat.r <- validity <- SigmaSqY.Qmax <- Q.max
 # H <- matrix(NA,nsim,Q-1)
@@ -106,6 +106,10 @@ Coef.robust <- matrix(NA,nsim,6)
 sd.robust <- matrix(NA,nsim,6)
 colnames(Coef.robust) <- colnames(sd.robust) <- 
   c("Basis-comp","Basis-robust","RF-comp","RF-Cor-comp","RF-robust","RF-Cor-robust")
+
+### oracle estimator
+oracle.est <- oracle.sd <- matrix(NA,nsim,3)
+colnames(oracle.est) <- colnames(oracle.sd) <- c("Basis","RF","RF-Cor")
 
 
 for(i in 1:nsim){
@@ -174,6 +178,8 @@ for(i in 1:nsim){
   SigmaSqY.Qmax[i,1] <- outputs.basis$SigmaSqY.Qmax
   Q.max[i,1] <- outputs.basis$Q.max; qhat.c[i,1] <- outputs.basis$q.comp; qhat.r[i,1] <- outputs.basis$q.robust;
   validity[i,1] <- outputs.basis$validity
+  oracle.est[i,1] <- outputs.basis$prop.vec.all[vio.index+1]
+  oracle.sd[i,1] <- outputs.basis$se.vec[vio.index+1]
   
   
   ### random forest based methods
@@ -195,10 +201,7 @@ for(i in 1:nsim){
   forest.2 <- TSRF.fit(forest.cov,D,mtry=mtry,max.depth=max.depth,min.node.size=min.node.size)
   A1.ind <- forest.2$A1.ind
   # weight matrix
-  timestart <- Sys.time()
   weight.2 <- TSRF.weight(forest.2$nodes.A1)
-  timeend <- Sys.time()
-  timeend - timestart
 
   Cov.aug <- W[,-1]
   for (q in 1:(Q-1)) {
@@ -224,7 +227,10 @@ for(i in 1:nsim){
   SigmaSqY.Qmax[i,2] <- outputs$SigmaSqY.Qmax
   Q.max[i,2] <- outputs$Q.max; qhat.c[i,2] <- outputs$qhat.c; qhat.r[i,2] <- outputs$qhat.r;
   validity[i,2] <- outputs$validity
-  
+  oracle.est[i,2] <- Coef.matrix.inter[i,vio.index+1]
+  oracle.est[i,3] <- Coef.matrix.inter[i,vio.index+Q+1]
+  oracle.sd[i,2] <- sd.matrix.inter[i,vio.index+1]
+  oracle.sd[i,3] <- sd.matrix.inter[i,vio.index+Q+1]
   
 }
 
