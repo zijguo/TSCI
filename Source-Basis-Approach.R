@@ -350,7 +350,7 @@ TSCI.basis.selection <- function(Y, D, W, D.rep, knot, M, Q=5) {
       delta.resid <- resid(lm(delta.rep~Cov.total))
       boot.vec[i] <- sum(delta.resid^2) + 2*sum(D.resid*delta.resid)
     }
-    thre.vec[index] <- max(quantile(boot.vec,0.975),30)
+    thre.vec[index] <- max(quantile(boot.vec,0.975),20)
     # thre.vec[index]<-(M-q)+sqrt(log(M-q))*2*sqrt(str.vec[index])
     # thre.vec[index]<-(sd.D^2)*thre.vec[index]
     MODEL.Y <- ESTIMATE(W, Y, knot)
