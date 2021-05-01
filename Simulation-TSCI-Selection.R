@@ -1,6 +1,5 @@
-### Start Date: Mar 6, 2021; Recently updated Date: April 27, 2021
-### TSCI: Random Forest with Binary IV and Continuous Treatment
-### Setting: with interaction, compare random forest and regression model
+### Start Date: Mar 6, 2021; Recently updated Date: April 30, 2021
+### TSCI: TSCI using Basis Approach and Random Forest
 
 
 library(MASS)
@@ -21,23 +20,26 @@ A1gen<-function(rho,p){
 
 
 ###### dimension change the dimension 5,10,20
-p = 20
-####please change this n = 1000, 2000, 3000, 4000
-n = 2000
+p = 10
+####please change this n = 1000, 3000, 5000
+n = 5000
 ### setting, change across 1, 2, 3, 4, 5, 6, 7
-f.index = 3
+f.index = 7
 ##### change the interaction 0.5, 1, 1.5
 inter.val = 1
 #### a denotes the IV strength, set as 1
 a = 1
 #### violation index, set as 1 or 2
-vio.index = 2
+vio.index = 1
 ##### tau denotes the violation strength
 ##### set tau as 1
 tau = 1
 #### the number of simulation numbers
 nsim = 10
 
+### save difference testing
+H <- beta.diff <- rep(list(NA),nsim)
+z.alpha <- rep(NA,nsim)
 
 ##############################
 f_1 <- function(x){x+a*(x^2+0.5*x^4) -25/12}
@@ -65,8 +67,6 @@ sd.matrix.inter<-matrix(NA,nrow=nsim,ncol=2*Q)
 colnames(Coef.matrix.inter) <- colnames(sd.matrix.inter) <- estimator.names
 
 
-### inflation factor of threshold of iv strength test
-c0 = 4
 # IV strength test
 iv.str <- iv.thol <- matrix(NA,nrow=nsim,ncol=Q)
 colnames(iv.str) <- colnames(iv.thol) <- paste("q",0:(Q-1),sep="")
@@ -166,20 +166,20 @@ for(i in 1:nsim){
   
   
   ### Basis Approach
-  basis.fit <- TSCI.basis.fit(W,D)
-  
-  D.rep.basis <- basis.fit$D.rep
-  M <- basis.fit$M
-  knot <- basis.fit$knot
-  
-  outputs.basis <- TSCI.basis.selection(Y, D, W, D.rep.basis, knot, M, Q=Q)
-  Coef.robust[i,1:2] <- outputs.basis$Coef.vec
-  sd.robust[i,1:2] <- outputs.basis$sd.vec
-  SigmaSqY.Qmax[i,1] <- outputs.basis$SigmaSqY.Qmax
-  Q.max[i,1] <- outputs.basis$Q.max; qhat.c[i,1] <- outputs.basis$q.comp; qhat.r[i,1] <- outputs.basis$q.robust;
-  validity[i,1] <- outputs.basis$validity
-  oracle.est[i,1] <- outputs.basis$prop.vec.all[vio.index+1]
-  oracle.sd[i,1] <- outputs.basis$se.vec[vio.index+1]
+  # basis.fit <- TSCI.basis.fit(W,D)
+  # 
+  # D.rep.basis <- basis.fit$D.rep
+  # M <- basis.fit$M
+  # knot <- basis.fit$knot
+  # 
+  # outputs.basis <- TSCI.basis.selection(Y, D, W, D.rep.basis, knot, M, Q=Q)
+  # Coef.robust[i,1:2] <- outputs.basis$Coef.vec
+  # sd.robust[i,1:2] <- outputs.basis$sd.vec
+  # SigmaSqY.Qmax[i,1] <- outputs.basis$SigmaSqY.Qmax
+  # Q.max[i,1] <- outputs.basis$Q.max; qhat.c[i,1] <- outputs.basis$q.comp; qhat.r[i,1] <- outputs.basis$q.robust;
+  # validity[i,1] <- outputs.basis$validity
+  # oracle.est[i,1] <- outputs.basis$prop.vec.all[vio.index+1]
+  # oracle.sd[i,1] <- outputs.basis$se.vec[vio.index+1]
   
   
   ### random forest based methods
@@ -231,6 +231,9 @@ for(i in 1:nsim){
   oracle.est[i,3] <- Coef.matrix.inter[i,vio.index+Q+1]
   oracle.sd[i,2] <- sd.matrix.inter[i,vio.index+1]
   oracle.sd[i,3] <- sd.matrix.inter[i,vio.index+Q+1]
+  H[[i]] <- outputs$H
+  beta.diff[[i]] <- outputs$beta.diff
+  z.alpha[i] <- outputs$z.alpha
   
 }
 
@@ -250,6 +253,16 @@ for (j in 1:ncol(sd.matrix.inter)) {
 apply(Cov.mat,2,mean)
 
 
+### coverage of oracle method
+Cov.oracle <- matrix(NA,nsim,ncol(oracle.sd))
+colnames(Cov.oracle) <- colnames(oracle.sd)
+for (j in 1:ncol(oracle.sd)) {
+  Cov.oracle[,j] <- ifelse(oracle.est[,j]-1.96*oracle.sd[,j]<=beta &
+                          beta<=oracle.est[,j]+1.96*oracle.sd[,j],1,0)
+}
+apply(Cov.oracle,2,mean)
+
+
 ### coverage of selection method
 apply(Coef.robust,2,mean)
 apply(sd.robust,2,mean)
@@ -263,6 +276,6 @@ for (j in 1:ncol(sd.robust)) {
 apply(Cov.robust,2,mean)
 
 
-filename <- paste("RF-Continuous-IV-Setting",f.index,"-Violation",vio.index,"-Interaction",inter.val,"-p",p,"-n",n,".RData",sep="")
+filename <- paste("TSCI-ConIV-Setting",f.index,"-Violation",vio.index,"-Interaction",inter.val,"-p",p,"-n",n,".RData",sep="")
 save.image(filename)
 
