@@ -386,7 +386,7 @@ TSRF.stat <- function(Y.A1, D.A1, VW.A1, betaHat, weight, n, SigmaSqY, SigmaSqD,
     delta <- rnorm(n.A1, 0, sqrt(SigmaSqD))
     boot.vec[i] <- t(delta)%*%T.V%*%delta + 2*t(D.rep)%*%T.V%*%delta
   }
-  iv.thol <- max(quantile(boot.vec,1-0.05/2),30)
+  iv.thol <- max(quantile(boot.vec,1-0.05/2),20)
   
   
   ### the Signal Strength Test for splitting estimator
@@ -638,7 +638,10 @@ TSRF.Selection <- function(Y, D, Cov.aug, A1.ind, weight, Q, alpha=0.05, tuning=
                     Q.max = Q.max,
                     SigmaSqY.Qmax = SigmaSqY.Qmax,
                     qhat.c =qhat.c, qhat.r = qhat.r,
-                    validity = validity)
+                    validity = validity,
+                    H = H,
+                    beta.diff = beta.diff,
+                    z.alpha = z.alpha)
   
 }
 
