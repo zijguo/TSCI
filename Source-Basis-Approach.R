@@ -57,7 +57,7 @@ create_knots <- function(P, N, folds, begin, end, l, min_knots = 2, max_knots = 
     for(j in 1:l_N)
     {
       n <- ((P[i] * N[j] * (1 - 1 / folds)))^0.8
-      if (max_knots >= n) max_knots <- round(n * p_max0)  
+      if (max_knots >= n) max_knots <- round(n * p_max)  
       knot_p <- seq(begin, end, length.out = l)
       knot <- n * knot_p
       knot <- sapply(knot, floor)
@@ -258,7 +258,7 @@ Cross_Validation <- function(DATA, folds, knots) {
 ### folds: number of folds for cross validation
 ### knots: 
 ### Output: D.rep: prediction of D
-###         sd.D: estimate of noise level in treatment model
+###         SigmaSqD: estimate of noise level in treatment model
 ###         M:
 TSCI.basis.fit <- function(W, D, folds=5, knots=NULL) {
   n <- length(D)
@@ -276,12 +276,12 @@ TSCI.basis.fit <- function(W, D, folds=5, knots=NULL) {
   D.rep<- pred(MODEL, W)
   resid<-D-D.rep
   ### the standard error of D-model
-  sd.D=sqrt(sum(resid^2)/length(resid))
+  SigmaSqD=sum(resid^2)/length(resid)
   # what is the name of M?
   M <- knot + 2
   
   returnList <- list(D.rep = D.rep,
-                     sd.D = sd.D,
+                     SigmaSqD = SigmaSqD,
                      knot = knot,
                      M = M)
   returnList
@@ -292,105 +292,132 @@ TSCI.basis.fit <- function(W, D, folds=5, knots=NULL) {
 ### TSCI.basis.selection
 ### Function: Violation space selection for TSCI
 ###           using basis approach
-### IV strength vector: str.vec
-### Threshold vector for IV strength: thre.vec
-### Proposed point estimator for a given Q: prop.vec.all
-### Standard error of the proposed point estimator: se.vec
-### Estimation of regression error: noise.vec
+### IV strength vector: iv.str
+### Threshold vector for IV strength: iv.thol
+### Proposed point estimator for a given Q: Coef.vec
+### Standard error of the proposed point estimator: sd.vec
+### Estimation of regression error: SigmaSqY
 ### inver.design
-TSCI.basis.selection <- function(Y, D, W, D.rep, knot, M, Q=5) {
-  Z <- W[,1]; X <- W[,-1]
+TSCI.basis.selection <- function(Y, D, W, D.rep, knot, M, Q=5, Vspace=NULL, intercept=TRUE) {
+  Y <- as.matrix(Y); D <- as.matrix(D); 
+  W <- as.matrix(W); D.rep <- as.matrix(D.rep)
+  Z <- W[,1]
   n <- length(Y)
-  sd.D <- sqrt(mean((D-D.rep)^2))
+  SigmaSqD <- mean((D-D.rep)^2)
   Q<-min(Q, M-1)
 
-  str.vec<-rep(NA,Q)
-  thre.vec<-rep(NA,Q)
-  prop.vec.all<-rep(NA,Q)
-  se.vec<-rep(NA,Q)
+  iv.str<-rep(NA,Q)
+  iv.thol<-rep(NA,Q)
+  Coef.vec<-rep(NA,Q)
+  sd.vec<-rep(NA,Q)
   inver.design<-rep(NA,Q)
-  noise.vec<-rep(NA,Q)
-  Coef.vec <- sd.vec <- rep(NA,2)
-  names(Coef.vec) <- names(sd.vec) <- c("Basis-comp","Basis-robust")
-  Cov.list <- rep(list(NA),Q)
+  SigmaSqY<-rep(NA,Q)
+  Coef.robust <- sd.robust <- rep(NA,2)
+  names(Coef.robust) <- names(sd.robust) <- c("Basis-comp","Basis-robust")
   D.resid.list <- rep(list(NA),Q)
   ####### do the computation from violation space 1 (poly 0) to Q (poly Q-1)
   for(index in 1:Q){
     q=index-1
-    if(q==0){
-      V=NULL
-    }else{
-      V=poly(Z,q) # raw=TRUE?
-    }
-    if(is.null(V)){
-      Cov.total<-W[,-1]
-    }else{
-      V.rep=V
-      q=dim(V)[2]
-      for(l in 1:q){
-        MODEL.V<-ESTIMATE(W,V[,l],knot)
-        V.rep[,l] <- pred(MODEL.V, W)
+    if (is.null(Vspace)) {
+      if(q==0){
+        V=NULL
+      }else{
+        V=poly(Z,q,raw = TRUE) # raw=TRUE?
       }
-      Cov.total<-cbind(V.rep, W[,-1])
+      if(is.null(V)){
+        Cov.total <- W[,-1]
+      }else{
+        V.rep=V
+        q=dim(V)[2]
+        for(l in 1:q){
+          MODEL.V<-ESTIMATE(W,V[,l],knot)
+          V.rep[,l] <- pred(MODEL.V, W)
+        }
+        Cov.total<-cbind(V.rep, W[,-1])
+      }
+    } else {
+      if (q==0) {
+        Cov.total <- W[,-1]
+      } else if (q==Q-1) {
+        V <- Vspace
+        V.rep <- V
+        for (l in 1:q) {
+          MODEL.V<-ESTIMATE(W,V[,l],knot)
+          V.rep[,l] <- pred(MODEL.V, W)
+        }
+        Cov.total<-cbind(V.rep, W[,-1])
+      } else {
+        V <- as.matrix(Vspace[,-(1:(Q-1-q))])
+        V.rep <- V
+        for (l in 1:q) {
+          MODEL.V<-ESTIMATE(W,V[,l],knot)
+          V.rep[,l] <- pred(MODEL.V, W)
+        }
+        Cov.total<-cbind(V.rep, W[,-1])
+      }
+      
     }
-    Cov.list[[index]] <- Cov.total
+
     
     
     D.resid<-resid(lm(D.rep~Cov.total))
     D.resid.list[[index]] <- D.resid
-    str.vec[index]<-sum(D.resid^2)/(sd.D^2)
+    iv.str[index]<-sum(D.resid^2)/(SigmaSqD)
     taun<-1/log(M-q)
-    # thre.vec[index]<-(M-q)+sqrt((M-q)*log(M-q))*(1+2*max(taun,sqrt(str.vec[index]/(M-q))))
-    ### bootstrap to get the threshold
     boot.vec <- rep(NA,300)
     for (i in 1:300) {
-      delta <- rnorm(n,0,sd.D)
+      delta <- rnorm(n,0,sqrt(SigmaSqD))
       MODEL.delta <- ESTIMATE(W,delta,knot)
       delta.rep <- pred(MODEL.delta,W)
       delta.resid <- resid(lm(delta.rep~Cov.total))
-      boot.vec[i] <- sum(delta.resid^2) + 2*sum(D.resid*delta.resid)
+      boot.vec[i] <- sum(delta.resid^2) + 2*sum(D.resid*delta.resid) # abs of second term?
     }
-    thre.vec[index] <- max(quantile(boot.vec,0.975),20)
-    # thre.vec[index]<-(M-q)+sqrt(log(M-q))*2*sqrt(str.vec[index])
-    # thre.vec[index]<-(sd.D^2)*thre.vec[index]
+    iv.thol[index] <- max(quantile(boot.vec,0.975),20)/(SigmaSqD)
+    # iv.thol[index] <- quantile(boot.vec,0.975)
     MODEL.Y <- ESTIMATE(W, Y, knot)
     Y.rep<- pred(MODEL.Y, W)
     #D.resid<-resid(lm(D.rep~Cov.total,-1))
-    Y.resid<-resid(lm(Y.rep~Cov.total))
+    if (intercept) {
+      Y.resid<-resid(lm(Y.rep~Cov.total))
+    } else {
+      Y.resid<-resid(lm(Y.rep~Cov.total-1))
+    }
     ### estimate the point estimator
-    prop.vec.all[index]<-sum(Y.resid*D.resid)/sum(D.resid^2)
+    Coef.vec[index]<-sum(Y.resid*D.resid)/sum(D.resid^2)
     ### estimate the standard error
     D.res<-D-D.rep
     Y.res<-Y-pred(MODEL.Y, W)
-    sigsq.hat<-mean((Y.res-prop.vec.all[index]*D.res)^2)
-    noise.vec[index]<-sigsq.hat
+    
+    SigmaSqY[index]<-mean((Y.res-Coef.vec[index]*D.res)^2)
     inver.design[index]<-1/sum(D.resid^2)
     scale<-1.05
-    se.vec[index]<-scale*sqrt(sigsq.hat/sum(D.resid^2))
+    sd.vec[index]<-scale*sqrt(SigmaSqY[index]/sum(D.resid^2))
   }
   ### selection
   ### test iv strength of order q polynomial in TSCI
-  str.iv.set<-str.vec >= thre.vec
-  # str.iv.set<-(str.vec>thre.vec)*(str.vec>10)
-  if (sum(str.iv.set)==0) {
+  ivtest.vec<-iv.str >= iv.thol
+  run.OLS <- weak.iv <- FALSE
+  if (sum(ivtest.vec)==0) {
     warning("Weak IV: Even if the IV is assumed to be valid, run OLS") # stop, output results of OLS
     Q.max <- 1
+    run.OLS <- TRUE
   } else {
-    Q.max <- sum(str.iv.set)-1
+    Q.max <- sum(ivtest.vec)-1
     if (Q.max==0) {
       ### if Q.max==0, redefine Qmax by log(log(n)), ignore at this stage
       warning("Weak IV: If the IV is linearly invalid. Set Qmax as 1.")
+      weak.iv <- TRUE
       Q.max <- 1
     }
   }
-  prop.vec<-as.vector(prop.vec.all[1:(Q.max+1)])
+  Coef.vec.Qmax<-as.vector(Coef.vec[1:(Q.max+1)])
   inver.design<-as.vector(inver.design[1:(Q.max+1)])
   ### conduct the selection
-  test.threshold <- test.diff <- matrix(0,Q.max,Q.max)
+  diff.thol <- beta.diff <- matrix(0,Q.max,Q.max)
   for (q in 0:(Q.max-1)) {
-    test.diff[q+1,(q+1):(Q.max)] <- abs(prop.vec[q+1]-prop.vec[(q+2):(Q.max+1)])
+    beta.diff[q+1,(q+1):(Q.max)] <- abs(Coef.vec.Qmax[q+1]-Coef.vec.Qmax[(q+2):(Q.max+1)])
     H.vec <- inver.design[(q+2):(Q.max+1)] - inver.design[q+1]
-    test.threshold[q+1,(q+1):(Q.max)] <- sqrt(noise.vec[Q.max+1])*sqrt(H.vec) # need to multiply by z.alpha
+    diff.thol[q+1,(q+1):(Q.max)] <- sqrt(SigmaSqY[Q.max+1])*sqrt(H.vec) # need to multiply by z.alpha
   }
   
   
@@ -398,24 +425,23 @@ TSCI.basis.selection <- function(Y, D, W, D.rep, knot, M, Q=5) {
   max.val <- rep(NA,300)
   for (i in 1:300) {
     diff.mat <- matrix(0,Q.max,Q.max)
-    eps <- rnorm(n, 0, sqrt(noise.vec[Q.max+1]))
+    eps <- rnorm(n, 0, sqrt(SigmaSqY[Q.max+1]))
+    MODEL.eps <- ESTIMATE(W,eps,knot)
+    eps.rep <- pred(MODEL.eps,W)
     for (q1 in 0:(Q.max-1)) {
       for (q2 in (q1+1):(Q.max)) {
-        MODEL.eps <- ESTIMATE(W,eps,knot)
-        eps.rep <- pred(MODEL.eps,W)
-        eps.resid1 <- resid(lm(eps.rep~Cov.list[[q1+1]]))
-        eps.resid2 <- resid(lm(eps.rep~Cov.list[[q2+1]]))
-        diff.mat[q1+1, q2] <- sum(D.resid.list[[q2+1]]*eps.resid2)/str.vec[q2+1]-sum(D.resid.list[[q1+1]]*eps.resid1)/str.vec[q1+1]
+        diff.mat[q1+1, q2] <- sum(D.resid.list[[q2+1]]*eps.rep)/iv.str[q2+1]-sum(D.resid.list[[q1+1]]*eps.rep)/iv.str[q1+1]
       }
     }
-    diff.mat <- abs(diff.mat)/test.threshold
+    diff.mat <- abs(diff.mat)/diff.thol
     max.val[i] <- max(diff.mat,na.rm = TRUE)
   }
+  # z.alpha <- quantile(max.val,0.99)
   z.alpha <- quantile(max.val,0.975)
-  test.threshold <- z.alpha*test.threshold
+  diff.thol <- z.alpha*diff.thol
   
   
-  C.alpha <- ifelse(test.diff<=test.threshold,0,1)
+  C.alpha <- ifelse(beta.diff<=diff.thol,0,1)
   # layer selection
   sel.vec <- apply(C.alpha,1,sum)
   if (all(sel.vec != 0)) {
@@ -433,25 +459,25 @@ TSCI.basis.selection <- function(Y, D, W, D.rep, knot, M, Q=5) {
   
   q.robust <- min(q.comp+1, Q.max)
   
-  Coef.vec[1] <- prop.vec[q.comp+1]
-  Coef.vec[2] <- prop.vec[q.robust+1]
-  sd.vec[1] <- se.vec[q.comp+1]
-  sd.vec[2] <- se.vec[q.robust+1]
+  Coef.robust[1] <- Coef.vec.Qmax[q.comp+1]
+  Coef.robust[2] <- Coef.vec.Qmax[q.robust+1]
+  sd.robust[1] <- sd.vec[q.comp+1]
+  sd.robust[2] <- sd.vec[q.robust+1]
   
   
-  returnList <- list(prop.vec.all = prop.vec.all,
-                     se.vec = se.vec,
-                     inver.design = inver.design,
-                     noise.vec = noise.vec,
-                     SigmaSqY.Qmax = noise.vec[Q.max+1],
-                     str.vec = str.vec,
-                     thre.vec = thre.vec,
-                     Q.max = Q.max,
-                     q.comp = q.comp,
-                     q.robust = q.robust,
-                     Coef.vec = Coef.vec,
+  returnList <- list(Coef.vec = Coef.vec,
                      sd.vec = sd.vec,
-                     validity = validity)
+                     Coef.robust = Coef.robust,
+                     sd.robust = sd.robust,
+                     inver.design = inver.design,
+                     SigmaSqY = SigmaSqY,
+                     SigmaSqD = SigmaSqD,
+                     SigmaSqY.Qmax = SigmaSqY[Q.max+1],
+                     iv.str = iv.str, iv.thol = iv.thol,
+                     Q.max = Q.max, q.comp = q.comp, q.robust = q.robust,
+                     validity = validity,
+                     run.OLS = run.OLS,
+                     weak.iv = weak.iv)
   returnList
 }
 
