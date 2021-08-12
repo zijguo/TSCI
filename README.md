@@ -3,7 +3,7 @@ In this package, the Two-Stage Curvature Idetification method is implemented usi
 
 
 ## Installation
-The package can be installed from Github using the following code:
+The package can be installed from Github using the following code:(cannot be installed for now since this is a private repo.)
 ```
 # install.packages("devtools")
 library(devtools)
