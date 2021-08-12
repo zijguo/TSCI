@@ -1,0 +1,13 @@
+Package: TSCI
+Type: Package
+Title: Two Stage Curvature Identification using Random Forest and Basis approach 
+Version: 0.1.1
+Author: Zijian Guo, Wei Yuan
+Maintainer: Zijian Guo <zijguo@stat.rutgers.edu>
+Description: Estimate treatment effect in the instrumental variable setting using
+    Random Forest and Basis Approach with violation space selection.
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.1.1
+Imports: ranger, fda, AER, Matrix, MASS
