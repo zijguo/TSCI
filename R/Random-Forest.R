@@ -3,12 +3,12 @@
 #'
 #' @param Y continuous, n by 1 outcome vector.
 #' @param D continuous or binary, n by 1 treatment vector.
-#' @param Z continuous or binary, n by 1 Instrumental Variable, only one instrument is implemented for violation space selection now.
+#' @param Z continuous or binary, n by 1 Instrumental Variable, only one instrument is implemented for violation space selection now. #zijian: may we try more than 1 IV?
 #' @param X continuous or binary, n by p_x baseline covariates matrix.
 #' @param intercept logic, whether to include intercept or not in the outcome model, default by TRUE.
-#' @param vio.space n by Q-1 matrix, each column refers to a violation form of Z, default by NULL assumes linear and quadratic violation.
+#' @param vio.space n by Q-1 matrix, each column refers to a violation form of Z, default by NULL assumes linear and quadratic violation. #zijian: what is Q?
 #' @param layer logic, do layer selection of violation space or not, default by TRUE.
-#' @param split.prop a value between 0 and 1, the proportion of samples we use in A1, default by 2/3.
+#' @param split.prop a value between 0 and 1, the proportion of samples we use in A1, default by 2/3. # A1 is probably too special here, general audience might not understand.
 #' @param num.trees number of trees, default by 200.
 #' @param mtry number of covariates to possibly split at in each node, default by p/3 to 2p/3.
 #' @param max.depth maximal depth of each tree, default by 0 referring to unlimited depth.
@@ -126,14 +126,15 @@ TSCI.RF <- function(Y,D,Z,X,intercept=TRUE,vio.space=NULL,layer=TRUE,split.prop=
   if (is.null(mtry)) mtry <- seq(round(p/3),round(2*p/3),by=1)
   if (is.null(max.depth)) max.depth <- 0
   if(is.null(min.node.size)) min.node.size <- c(5,10,20)
-  # define the augmentation of covariates,
-  # which is the combination of violation space and baseline covariates
+  # define the vio.space if not specified
   if (is.null(vio.space)) {
     Q = 3
     vio.space <- poly(Z,degree = Q-1,raw = TRUE)
   } else {
     Q = NCOL(vio.space) + 1
   }
+  # define the augmentation of covariates,
+  # which is the combination of violation space and baseline covariates
   Cov.aug <- cbind(vio.space,X)
 
   # Treatment model fitting
@@ -143,6 +144,7 @@ TSCI.RF <- function(Y,D,Z,X,intercept=TRUE,vio.space=NULL,layer=TRUE,split.prop=
   weight <- TSCI.RF.weight(forest$nodes.A1)
 
   # Selection
+  # Zijian: would it be better if we input X and violation matrix, instead of Cov.aug?
   outputs <- TSCI.RF.Selection(Y,D,Cov.aug,A1.ind,weight=weight,Q=Q,intercept=intercept,layer=layer,str.thol=str.thol)
   return(outputs)
 }
@@ -150,7 +152,7 @@ TSCI.RF <- function(Y,D,Z,X,intercept=TRUE,vio.space=NULL,layer=TRUE,split.prop=
 
 #' Random Forest with data splitting
 #'
-#' @param D continuous or binary, n by 1 treatment vector.
+#' @param D continuous or binary, n by 1 treatment vector. #Zijian: not just con and binary, can be other types, right?
 #' @param Z continuous or binary, n by 1 Instrumental Variable, only one instrument is implemented for violation space selection now.
 #' @param X continuous or binary, n by p_x baseline covariates matrix.
 #' @param num.trees number of trees.
@@ -175,7 +177,7 @@ TSCI.RF <- function(Y,D,Z,X,intercept=TRUE,vio.space=NULL,layer=TRUE,split.prop=
 #' }
 #'
 #'
-TSCI.RF.fit <- function(D,Z,X,num.trees,mtry,max.depth,min.node.size,split.prop,MSE.thol=1e12,forest.save=T) {
+TSCI.RF.fit <- function(D,Z,X,num.trees,mtry,max.depth,min.node.size,split.prop,MSE.thol=1e12,forest.save=T) { #zijian: forest.save=True?
   W <- as.matrix(cbind(Z,X)); D <- as.matrix(D)
   n <- NROW(W); p <- NCOL(W)
   Data <- data.frame(cbind(D,W))
@@ -188,7 +190,7 @@ TSCI.RF.fit <- function(D,Z,X,num.trees,mtry,max.depth,min.node.size,split.prop,
     min.node.size = min.node.size
   )
   # split the data into two parts A1 and A2
-  # use A2 to build the random forest and use A1 to do inference
+  # use A2 to build the random forest and use A1 to predict
   n.A1 <- round(split.prop*n)
   A1.ind <- 1:n.A1
   Data.A1 <- Data[A1.ind,]
@@ -212,7 +214,7 @@ TSCI.RF.fit <- function(D,Z,X,num.trees,mtry,max.depth,min.node.size,split.prop,
   }
   # leaf nodes information of A1 on the Random Forest built on A2
   nodes.A1 <- predict(forest.A2, data = Data.A1, type = "terminalNodes")$predictions
-  returnList <- list(forest.A2 = forest.A2,
+  returnList <- list(forest.A2 = forest.A2,  #zijian: what is forest.A2 and nodes.A1
                      params.A2 = params.A2,
                      A1.ind = A1.ind,
                      nodes.A1 = nodes.A1,
@@ -224,7 +226,7 @@ TSCI.RF.fit <- function(D,Z,X,num.trees,mtry,max.depth,min.node.size,split.prop,
 
 #' Weight matrix computation of random forest
 #'
-#' @param nodes A n_A1 by num.trees matrix, rows refer to different samples, columns refer to different trees, the entrees are leaf node indices of each sample in each tree.
+#' @param nodes A n_A1 by num.trees matrix (#zijian:check the previous sentence, is this the Omega matrix?), rows refer to different samples, columns refer to different trees, the entrees are leaf node indices of each sample in each tree.
 #'
 #' @return
 #'     \item{\code{out.weight}}{A n_A1 by n_A1 symmetric sparse weight matrix of class dgCMatrix with the ith row represents the weights of outcome of each sample on the prediction of the ith outcome.}
@@ -281,6 +283,7 @@ TSCI.RF.stat <- function(Y.rep, D.rep, Cov.rep, betaHat, weight, n, SigmaSqY, Si
   n.A1 <- length(Y.rep); r.aug <- NCOL(Cov.rep)
   # compute the trace of T(V)
   trace.T <- 0
+  # zijian: more explanations?
   for (j in 1:n.A1) {
     trace.T <- trace.T + sum(resid(lm(weight[,j]~Cov.rep))^2)
   }
@@ -293,9 +296,11 @@ TSCI.RF.stat <- function(Y.rep, D.rep, Cov.rep, betaHat, weight, n, SigmaSqY, Si
 
   ### standard errors of bias-corrected estimator
   betaHat.cor <- betaHat - SigmaYD*trace.T/D.RSS
+  #zijian: what if no correction?
   sd.cor <- sqrt((SigmaSqY*explained.iv+(SigmaSqD*SigmaSqY+SigmaYD^2)*(trace.T^2)/(n.A1-r.aug-1))/(D.RSS^2))
 
   # bootstrap for the threshold of IV strength test
+  # zijian: more explanations?
   boot.vec <- rep(NA,300)
   for (i in 1:300) {
     delta <- rnorm(n.A1,0,sqrt(SigmaSqD))
@@ -305,6 +310,7 @@ TSCI.RF.stat <- function(Y.rep, D.rep, Cov.rep, betaHat, weight, n, SigmaSqY, Si
     boot.vec[i] <- sum(delta.resid^2) + 2*sum(D.rep2*delta.resid)
   }
   iv.thol <- max(quantile(boot.vec,0.975),str.thol)/(SigmaSqD)
+  # zijian: is scale used here?
   scale <- 1
   returnList <- list(betaHat = betaHat,
                      sd = sd,
@@ -325,7 +331,7 @@ TSCI.RF.stat <- function(Y.rep, D.rep, Cov.rep, betaHat, weight, n, SigmaSqY, Si
 ###        Cov.aug: Augmented combination of violation space and baseline covariates
 ###        A1.ind: Indices of samples in A1
 ###        weight: n.A1 by n.A1 weight matrix
-###        Q: Number of violation space, including no violation
+###        Q: Number of violation space, including no violation # Zijian: the information in Q is somehow overlapped with Cov.aug?
 ###        intercept: Include intercept in the outcome model or not
 ###        layer: logic, layer selection or not
 ###        str.thol: the minimal value of the threshold of IV strength test
@@ -367,7 +373,7 @@ TSCI.RF.Selection <- function(Y, D, Cov.aug, A1.ind, weight, Q, intercept, layer
         reg.rf <- lm(Y.rep~D.rep+Cov.rep-1)
         betaHat <- coef(reg.rf)[1]
       }
-      Coef.vec[index] <- betaHat
+      Coef.vec[index] <- betaHat #zijian: this betaHat is not corrected?
       SigmaSqY[index] <- get.sigma(betaHat, Y, D, Cov.aug)
       SigmaYD[index] <- sum((D.A1-D.rep)*resid(lm(Y.A1-D.A1*betaHat~Cov.aug.A1)))/(n.A1-r.aug-1)
       stat.outputs <- TSCI.RF.stat(Y.rep,D.rep,Cov.rep,betaHat,weight,n,SigmaSqY[index],SigmaSqD,SigmaYD[index],str.thol=str.thol)
@@ -401,18 +407,19 @@ TSCI.RF.Selection <- function(Y, D, Cov.aug, A1.ind, weight, Q, intercept, layer
   # all of the q below are from 0 to (Q-1), so use q+1 to index the columns
   # Comparison and robust estimators
   Coef.robust <- sd.robust <- rep(NA,4)
+  # zijian: I guess we compute four estimators here for the sake of saving time
   names(Coef.robust) <- names(sd.robust) <- c("RF-comp","RF-Cor-comp","RF-robust","RF-Cor-robust")
   ivtest.vec <- (iv.str>=iv.thol)
   run.OLS <- weak.iv <- FALSE
   if (sum(ivtest.vec)==0) {
-    warning("Weak IV, if the IV is assumed to be valid, run OLS") # stop, output results of OLS
+    warning("Weak IV, even if the IV is assumed to be valid; run OLS") # stop, output results of OLS
     run.OLS <- TRUE
     Q.max <- 1
   } else {
     Q.max <- sum(ivtest.vec)-1
     if (Q.max==0) {
-      ### if Q.max==0, redefine Qmax by log(log(n)), ignore at this stage
-      warning("Weak IV, if the IV is invalid. We still test the IV invalidity.")
+      ### if Q.max==0, redefine Qmax by log(log(n)), ignore at this stage # zijian: I do not understand...
+      warning("Weak IV, if the IV is invalid. We still test the IV invalidity.") # zijian: we need to rewrite this sentence...
       Q.max <- 1
       weak.iv = TRUE
     }
@@ -425,7 +432,7 @@ TSCI.RF.Selection <- function(Y, D, Cov.aug, A1.ind, weight, Q, intercept, layer
   H <- beta.diff <- matrix(0,Q.max,Q.max)
   # compute H matrix
   for (q1 in 0:(Q.max-1)) {
-    for (q2 in (q1+1):(Q.max)) {
+    for (q2 in (q1+1):(Q.max)) { # zijian: this is a bit confusing should we use q2 or q2+1?
       H[q1+1,q2] <- as.numeric(explained.iv[q1+1]/(D.RSS[q1+1]^2)+explained.iv[q2+1]/(D.RSS[q2+1]^2)-
                                  2*t(D.resid[[q1+1]])%*%weight%*%weight%*%D.resid[[q2+1]]/(D.RSS[q1+1]*D.RSS[q2+1]))
 
