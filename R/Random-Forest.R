@@ -151,9 +151,9 @@ TSCI.RF <- function(Y,D,Z,X,intercept=TRUE,vio.space=NULL,layer=TRUE,split.prop=
 
 #' Random Forest with data splitting
 #'
-#' @param D continuous or binary, n by 1 treatment vector. #Zijian: not just con and binary, can be other types, right?
-#' @param Z continuous or binary, n by 1 Instrumental Variable, only one instrument is implemented for violation space selection now.
-#' @param X continuous or binary, n by p_x baseline covariates matrix.
+#' @param D continuous or categorical, n by 1 treatment vector.
+#' @param Z continuous or categorical, n by 1 Instrumental Variable, only one instrument is implemented for violation space selection now.
+#' @param X continuous or categorical, n by p_x baseline covariates matrix.
 #' @param num.trees number of trees.
 #' @param mtry number of covariates to possibly split at in each node.
 #' @param max.depth maximal depth of each tree.
@@ -176,7 +176,7 @@ TSCI.RF <- function(Y,D,Z,X,intercept=TRUE,vio.space=NULL,layer=TRUE,split.prop=
 #' }
 #'
 #'
-TSCI.RF.fit <- function(D,Z,X,num.trees,mtry,max.depth,min.node.size,split.prop,MSE.thol=1e12,forest.save=T) { #zijian: forest.save=True?
+TSCI.RF.fit <- function(D,Z,X,num.trees,mtry,max.depth,min.node.size,split.prop,MSE.thol=1e12,forest.save=FALSE) {
   W <- as.matrix(cbind(Z,X)); D <- as.matrix(D)
   n <- NROW(W); p <- NCOL(W)
   Data <- data.frame(cbind(D,W))
@@ -213,7 +213,7 @@ TSCI.RF.fit <- function(D,Z,X,num.trees,mtry,max.depth,min.node.size,split.prop,
   }
   # leaf nodes information of A1 on the Random Forest built on A2
   nodes.A1 <- predict(forest.A2, data = Data.A1, type = "terminalNodes")$predictions
-  returnList <- list(forest.A2 = forest.A2,  #zijian: what is forest.A2 and nodes.A1
+  returnList <- list(forest.A2 = forest.A2,
                      params.A2 = params.A2,
                      A1.ind = A1.ind,
                      nodes.A1 = nodes.A1,
@@ -225,7 +225,7 @@ TSCI.RF.fit <- function(D,Z,X,num.trees,mtry,max.depth,min.node.size,split.prop,
 
 #' Weight matrix computation of random forest
 #'
-#' @param nodes A n_A1 by num.trees matrix (#zijian:check the previous sentence, is this the Omega matrix?), rows refer to different samples, columns refer to different trees, the entrees are leaf node indices of each sample in each tree.
+#' @param nodes A n_A1 by num.trees matrix, rows refer to different samples, columns refer to different trees, the entrees are leaf node indices of each sample in each tree.
 #'
 #' @return
 #'     \item{\code{out.weight}}{A n_A1 by n_A1 symmetric sparse weight matrix of class dgCMatrix with the ith row represents the weights of outcome of each sample on the prediction of the ith outcome.}
@@ -282,7 +282,7 @@ TSCI.RF.stat <- function(Y.rep, D.rep, Cov.rep, betaHat, weight, n, SigmaSqY, Si
   n.A1 <- length(Y.rep); r.aug <- NCOL(Cov.rep)
   # compute the trace of T(V)
   trace.T <- 0
-  # zijian: more explanations?
+  # the trace of T matrix can be computed as RSS of each column of Omega on Cov.rep
   for (j in 1:n.A1) {
     trace.T <- trace.T + sum(resid(lm(weight[,j]~Cov.rep))^2)
   }
@@ -307,7 +307,6 @@ TSCI.RF.stat <- function(Y.rep, D.rep, Cov.rep, betaHat, weight, n, SigmaSqY, Si
     boot.vec[i] <- sum(delta.resid^2) + 2*sum(D.rep2*delta.resid)
   }
   iv.thol <- max(quantile(boot.vec,0.975),str.thol)/(SigmaSqD)
-  # zijian: is scale used here?
   scale <- 1
   returnList <- list(betaHat = betaHat,
                      sd = sd,
@@ -370,7 +369,7 @@ TSCI.RF.Selection <- function(Y, D, Cov.aug, A1.ind, weight, Q, intercept, layer
         reg.rf <- lm(Y.rep~D.rep+Cov.rep-1)
         betaHat <- coef(reg.rf)[1]
       }
-      Coef.vec[index] <- betaHat #zijian: this betaHat is not corrected?
+      Coef.vec[index] <- betaHat
       SigmaSqY[index] <- get.sigma(betaHat, Y, D, Cov.aug)
       SigmaYD[index] <- sum((D.A1-D.rep)*resid(lm(Y.A1-D.A1*betaHat~Cov.aug.A1)))/(n.A1-r.aug-1)
       stat.outputs <- TSCI.RF.stat(Y.rep,D.rep,Cov.rep,betaHat,weight,n,SigmaSqY[index],SigmaSqD,SigmaYD[index],str.thol=str.thol)
@@ -414,7 +413,6 @@ TSCI.RF.Selection <- function(Y, D, Cov.aug, A1.ind, weight, Q, intercept, layer
   } else {
     Q.max <- sum(ivtest.vec)-1
     if (Q.max==0) {
-      ### if Q.max==0, redefine Qmax by log(log(n)), ignore at this stage # zijian: I do not understand...
       warning("Weak IV, if the IV is invalid. We still test the IV invalidity.") # zijian: we need to rewrite this sentence...
       Q.max <- 1
       weak.iv = TRUE
