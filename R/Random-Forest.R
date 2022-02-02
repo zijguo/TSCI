@@ -151,9 +151,9 @@ TSCI.RF <- function(Y,D,Z,X,intercept=TRUE,vio.space=NULL,layer=TRUE,split.prop=
 
 #' Random Forest with data splitting
 #'
-#' @param D continuous or categorical, n by 1 treatment vector.
-#' @param Z continuous or categorical, n by 1 Instrumental Variable, only one instrument is implemented for violation space selection now.
-#' @param X continuous or categorical, n by p_x baseline covariates matrix.
+#' @param D continuous or binary, n by 1 treatment vector.
+#' @param Z continuous or binary, n by 1 Instrumental Variable, only one instrument is implemented for violation space selection now.
+#' @param X continuous or binary, n by p_x baseline covariates matrix.
 #' @param num.trees number of trees.
 #' @param mtry number of covariates to possibly split at in each node.
 #' @param max.depth maximal depth of each tree.
