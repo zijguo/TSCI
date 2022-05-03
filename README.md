@@ -1,5 +1,5 @@
 # TSCI
-In this package, the Two-Stage Curvature Idetification method is implemented using both random forest and basis approach. Functions to estimate treatment effect and select violation space are provided in the context of instrumental variables.
+This package implements the Two-Stage Curvature Idetification method proposed in the paper [https://arxiv.org/abs/2203.12808] using Ramdom Forest and Bais Approach. It constructs the estimator for treatment effect in the presence of invalid IVs by doing a IV strength test and the violation space selection. Confidence intervals are futher constructed for this estimator.
 
 
 ## Installation
