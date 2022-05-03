@@ -11,7 +11,7 @@ devtools::install_github("https://github.com/zijguo/TSCI")
 ```
 
 ## Examples
-This example shows the point estimators and confidence intervals for TSCI with random forest and basis approach, The true outcome model has a linear violation of the instrument variable.
+This example shows the point estimators and confidence intervals for TSCI with random forest and basis approach. The instrumental variable has a linear violation form.
 
 ``` r
 library(TSCI)
