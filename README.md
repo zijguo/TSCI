@@ -86,3 +86,32 @@ output.BA$CI.robust
 # estimated violation space
 output.BA$q.hat
 ```
+
+The next example shows the estimator for the effect of Return to School using the David Card data.
+ 
+``` r
+library(TSCI)
+# card data
+library(ivmodel)
+data(card.data)
+
+Xname2=c("exper", "expersq", "black", "south", "smsa", "reg661","reg662", "reg663", "reg664", "reg665", "reg666", "reg667","reg668", "smsa66")
+
+Y=card.data[,"lwage"]
+D=card.data[,"educ"]
+Z=card.data[,"nearc4"]
+X2=card.data[,Xname2]
+
+# results for TSLS
+TSLS = ivmodel(Y=Y,D=D,Z=Z,X=X2)
+summary(TSLS)
+
+# results for TSCI with Random Forest
+card.RF = TSRF(Y,D,Z,X2)
+# point estimates
+card.RF$Coef.robust
+# standard errors
+card.RF$sd.robust
+# confidence intervals
+card.RF$CI.robust
+```
