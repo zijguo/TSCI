@@ -14,13 +14,14 @@ devtools::install_github("https://github.com/zijguo/TSCI")
 This example shows the point estimators and confidence intervals for TSCI with random forest and basis approach, The true outcome model has a linear violation of the instrument variable.
 
 ``` r
+library(TSCI)
 library(MASS)
 
 # dimension
 p = 20
 # sample size
 n = 1000
-# interaction value
+# interaction value of Z and X
 inter.val = 0.5
 # the IV strength
 a = 1
@@ -59,7 +60,7 @@ Z=W[,1]
 X=W[,-1]
 # generate the treatment variable D
 D=f(Z)+X%*%alpha+Z*X%*%inter+Error[,1]
-# generate the outcome variable Y
+# generate the outcome variable Y, linear violation of Z
 Y=D*beta+tau*Z+X%*%gamma+Error[,2]
 
 # Two Stage Random Forest
@@ -70,6 +71,8 @@ output.RF$Coef.robust
 output.RF$sd.robust
 # confidence intervals
 output.RF$CI.robust
+# estimated violation space
+output.RF$q.hat
 
 
 # Two Stage Basis Approach
@@ -80,4 +83,6 @@ output.BA$Coef.robust
 output.BA$sd.robust
 # confidence intervals
 output.BA$CI.robust
+# estimated violation space
+output.BA$q.hat
 ```
