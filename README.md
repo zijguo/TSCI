@@ -65,7 +65,6 @@ D=f(Z)+X%*%alpha+Z*X%*%inter+Error[,1]
 Y=D*beta+tau*Z+X%*%gamma+Error[,2]
 ```
 
-This example shows the point estimators and confidence intervals for TSCI with random forest and basis approach. 
 
 
 # TSCI with Random Forests
@@ -96,8 +95,9 @@ output.BA$CI.robust
 output.BA$q.hat
 ```
 
-The next example shows the estimator for the effect of Return to School using the David Card data.
- 
+
+# Analysis of Card Education Data by TSCI 
+
 ``` r
 library(TSCI)
 # card data
