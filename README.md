@@ -10,9 +10,8 @@ library(devtools)
 devtools::install_github("https://github.com/zijguo/TSCI")
 ```
 
-## Examples
-We generate the data where the instrumental variable has a linear violation form.
-
+## Data generation 
+#We generate the data where the instrumental variable has a linear violation form.
 ``` r
 library(TSCI)
 library(MASS)
@@ -69,8 +68,9 @@ Y=D*beta+tau*Z+X%*%gamma+Error[,2]
 This example shows the point estimators and confidence intervals for TSCI with random forest and basis approach. 
 
 
-# Two Stage Random Forest
+# TSCI with Random Forests
 ``` r
+# implement TSCI with Random Forests 
 output.RF = TSRF(Y,D,Z,X)
 # point estimates
 output.RF$Coef.robust
@@ -82,8 +82,9 @@ output.RF$CI.robust
 output.RF$q.hat
 ```
 
+# TSCI with Basis Approaches
 ``` r
-# Two Stage Basis Approach
+# implement TSCI with Basis Approach
 output.BA = TSBA(Y,D,Z,X)
 # point estimates
 output.BA$Coef.robust
