@@ -4,7 +4,9 @@ Title: Two Stage Curvature Idetification
 Version: 0.1.1
 Author: Wei Yuan, Peter Bühlmann, Zijian Guo
 Maintainer: Zijian Guo <zijguo@stat.rutgers.edu>
-Description: This package implements the Two Stage Curvature Identification using Random Forest and Basis Approach proposed in <https://arxiv.org/abs/2203.12808>. It constructs the esimator of causal effect using instrumental variable(IV) in the presence of invalid IVs. An IV strength test and the violastion space selection for the IVs are implemented and we further constrcut the confidence interval for the causal effect.
+Description: This package implements the Two Stage Curvature Identification using Random Forests and Basis Approach proposed in <https://arxiv.org/abs/2203.12808>. 
+It constructs the esimator of the causal effect even if all IVs are possibly invalid. An IV strength test and the violastion form selection are implemented. 
+We further constrcut the confidence interval for the causal effect.
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
