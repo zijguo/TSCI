@@ -11,7 +11,7 @@ devtools::install_github("https://github.com/zijguo/TSCI")
 ```
 
 ## Examples
-This example shows the point estimators and confidence intervals for TSCI with random forest and basis approach. The instrumental variable has a linear violation form.
+We generate the data where the instrumental variable has a linear violation form.
 
 ``` r
 library(TSCI)
@@ -25,10 +25,8 @@ n = 1000
 inter.val = 0.5
 # the IV strength
 a = 1
-# violation strength
-tau = 1
+# the conditional mean function for the treatment model
 f = function(x){a*(1*sin(2*pi*x) + 1.5*cos(2*pi*x))}
-rho1=0.5
 # function to generate covariance matrix
 A1gen=function(rho,p){
   A1=matrix(0,p,p)
@@ -39,10 +37,14 @@ A1gen=function(rho,p){
   }
   A1
 }
+rho1=0.5
 Cov=(A1gen(rho1,p+1))
 mu=rep(0,p+1)
 # true effect
 beta=1
+# violation strength
+tau = 1
+# other model parameters
 alpha=as.matrix(rep(-0.3,p))
 gamma=as.matrix(rep(0.2,p))
 inter=as.matrix(c(rep(inter.val,5),rep(0,p-5)))
@@ -62,8 +64,13 @@ X=W[,-1]
 D=f(Z)+X%*%alpha+Z*X%*%inter+Error[,1]
 # generate the outcome variable Y, linear violation of Z
 Y=D*beta+tau*Z+X%*%gamma+Error[,2]
+```
+
+This example shows the point estimators and confidence intervals for TSCI with random forest and basis approach. 
+
 
 # Two Stage Random Forest
+``` r
 output.RF = TSRF(Y,D,Z,X)
 # point estimates
 output.RF$Coef.robust
@@ -73,8 +80,9 @@ output.RF$sd.robust
 output.RF$CI.robust
 # estimated violation space
 output.RF$q.hat
+```
 
-
+``` r
 # Two Stage Basis Approach
 output.BA = TSBA(Y,D,Z,X)
 # point estimates
