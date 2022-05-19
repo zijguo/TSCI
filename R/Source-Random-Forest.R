@@ -1,17 +1,17 @@
-#' @title Two Stage Curvature Identification with Random Forest
-#' @description This function implements Two Stage Curvature Identification with the Random Forest. It tests the IV strength and chooses the violation space among a series of candidate spaces, and also constructs the confidence interval for the treatment effect with the selected violation space.
+#' @title Two Stage Curvature Identification with Random Forests
+#' @description This function implements Two Stage Curvature Identification with the Random Forests. It tests the IV strength and chooses the best violation form, and also constructs the confidence interval for the treatment effect with the selected violation form.
 #'
 #' @param Y outcome with dimension n by 1
 #' @param D treatment with dimension n by 1
 #' @param Z instrument variable with dimension n by 1
 #' @param X baseline covariates with dimension n by p
-#' @param vio.space a matrix or a list. If a matrix, then each column corresponds to a violation form of Z; If a list, then each element corresponds to a violation form of Z and must be a matrix of n rows, e.g. (Z^3,Z^2); If NULL, then default by the n by 3 matrix (Z^3, Z^2, Z). Violation space selection will be performed according to provided violation space, for example, null violation space vs Z vs (Z^2, Z) vs (Z^3, Z^2, Z) in the default case
+#' @param vio.space a matrix or a list. If a matrix, then each column corresponds to a violation form of Z; If a list, then each element corresponds to a violation form of Z and must be a matrix of n rows, e.g. (Z^3,Z^2); If NULL, then default by the n by 3 matrix (Z^3, Z^2, Z). Violation form selection will be performed according to provided violation forms, for example, null violation space vs Z vs (Z^2, Z) vs (Z^3, Z^2, Z) in the default case
 #' @param intercept logic, including the intercept or not in the outcome model, default by TRUE
 #' @param A1.ind the indices of samples in A1, used for constructing the point estimator and the confidence interval, default by randomly selected round(2/3*n) samples from 1 to n
-#' @param num.trees number of trees in Random Forest, default by 200
-#' @param mtry number of covariates to possibly split at in each node of the tree in Random Forest, default by a sequence from round((p+1)/3) to round(2(p+1)/3)
-#' @param max.depth maximal tree depth in Random Forest, default by 0, which refers to unlimited depth
-#' @param min.node.size minimal size of each leaf node in Random Forest, default by the set {5, 10, 15}
+#' @param num.trees number of trees in Random Forests, default by 200
+#' @param mtry number of covariates to possibly split at in each node of the tree in Random Forests, default by a sequence from round((p+1)/3) to round(2(p+1)/3)
+#' @param max.depth maximal tree depth in Random Forests, default by 0, which refers to unlimited depth
+#' @param min.node.size minimal size of each leaf node in Random Forests, default by the set {5, 10, 15}
 #' @param str.thol minimal value of the threshold of IV strength test, default by 10
 #' @param alpha the significance level, default by 0.05
 #'
